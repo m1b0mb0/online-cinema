@@ -1,15 +1,21 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import get_jwt_auth_manager, get_settings, Settings
+from src.config import (
+    get_jwt_auth_manager,
+    get_settings,
+    BaseAppSettings,
+    get_accounts_email_notificator,
+)
 from src.database import (
     get_db,
     UserModel,
+    UserProfileModel,
     UserGroupModel,
     UserGroupEnum,
     ActivationTokenModel,
@@ -18,6 +24,7 @@ from src.database import (
 )
 from src.exceptions import BaseSecurityError
 from src.security.interfaces import JWTAuthManagerInterface
+from src.notifications import EmailSenderInterface
 from src.schemas.accounts import (
     UserRegistrationRequestSchema,
     UserRegistrationResponseSchema,
@@ -45,7 +52,10 @@ async def get_user_by_email(db: AsyncSession, email: str) -> UserModel | None:
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user(
-    user_data: UserRegistrationRequestSchema, db: AsyncSession = Depends(get_db)
+    user_data: UserRegistrationRequestSchema,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     existing_user = await get_user_by_email(db, user_data.email)
 
@@ -58,33 +68,53 @@ async def create_user(
     user_group = await db.scalar(
         select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER)
     )
-
-    new_user = UserModel.create(
-        email=user_data.email,
-        raw_password=user_data.password,
-        group_id=user_group.id,
-    )
-    db.add(new_user)
-    await db.flush()
-
-    activation_token = ActivationTokenModel(user_id=new_user.id)
-    db.add(activation_token)
-
-    try:
-        await db.commit()
-        await db.refresh(new_user)
-    except SQLAlchemyError:
-        await db.rollback()
+    if not user_group:
         raise HTTPException(
-            status_code=500, detail="An error occurred during user creation."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Default user group not found.",
         )
 
-    return UserRegistrationResponseSchema.model_validate(new_user)
+    try:
+        new_user = UserModel.create(
+            email=str(user_data.email),
+            raw_password=user_data.password,
+            group_id=user_group.id,
+        )
+        db.add(new_user)
+        await db.flush()
+
+        user_profile = UserProfileModel(user_id=new_user.id)
+        db.add(user_profile)
+
+        activation_token = ActivationTokenModel(user_id=new_user.id)
+        db.add(activation_token)
+
+        await db.commit()
+        await db.refresh(new_user)
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during user creation.",
+        ) from e
+    else:
+        activation_link = (
+            f"http://127.0.0.1/accounts/activate/?token={activation_token.token}"
+        )
+
+        background_tasks.add_task(
+            email_sender.send_activation_email, str(new_user.email), activation_link
+        )
+
+        return UserRegistrationResponseSchema.model_validate(new_user)
 
 
 @router.post("/activate/", response_model=MessageResponseSchema)
 async def activate_user(
-    token_record: UserActivationRequestSchema, db: AsyncSession = Depends(get_db)
+    token_record: UserActivationRequestSchema,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     db_user = await get_user_by_email(db, token_record.email)
 
@@ -127,24 +157,48 @@ async def activate_user(
     await db.delete(activation_token)
     await db.commit()
 
+    login_link = "http://127.0.0.1/accounts/login/"
+
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email, str(token_record.email), login_link
+    )
+
     return MessageResponseSchema(message="User account activated successfully.")
 
 
 @router.post("/password-reset/request/", response_model=MessageResponseSchema)
 async def reset_password_token(
-    request_data: PasswordResetRequestSchema, db: AsyncSession = Depends(get_db)
+    request_data: PasswordResetRequestSchema,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     db_user = await get_user_by_email(db, request_data.email)
 
-    if db_user and db_user.is_active:
-        await db.execute(
-            delete(PasswordResetTokenModel).where(
-                PasswordResetTokenModel.user_id == db_user.id
-            )
+    if not db_user or not db_user.is_active:
+        return MessageResponseSchema(
+            message="If you are registered, you will receive an email with instructions."
         )
-        reset_token = PasswordResetTokenModel(user_id=db_user.id)
-        db.add(reset_token)
-        await db.commit()
+
+    await db.execute(
+        delete(PasswordResetTokenModel).where(
+            PasswordResetTokenModel.user_id == db_user.id
+        )
+    )
+
+    reset_token = PasswordResetTokenModel(user_id=db_user.id)
+    db.add(reset_token)
+    await db.commit()
+
+    password_reset_complete_link = (
+        f"http://127.0.0.1/accounts/password-reset-complete/?token={reset_token.token}"
+    )
+
+    background_tasks.add_task(
+        email_sender.send_password_reset_email,
+        str(request_data.email),
+        password_reset_complete_link,
+    )
 
     return MessageResponseSchema(
         message="If you are registered, you will receive an email with instructions."
@@ -153,7 +207,10 @@ async def reset_password_token(
 
 @router.post("/reset-password/complete/", response_model=MessageResponseSchema)
 async def reset_password(
-    data: PasswordResetCompleteRequestSchema, db: AsyncSession = Depends(get_db)
+    data: PasswordResetCompleteRequestSchema,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     db_user = await get_user_by_email(db, data.email)
 
@@ -194,6 +251,12 @@ async def reset_password(
             detail="An error occurred while resetting the password.",
         )
 
+    login_link = "http://127.0.0.1/accounts/login/"
+
+    background_tasks.add_task(
+        email_sender.send_password_reset_complete_email, str(data.email), login_link
+    )
+
     return MessageResponseSchema(message="Password reset successfully.")
 
 
@@ -206,7 +269,7 @@ async def login(
     login_data: UserLoginRequestSchema,
     db: AsyncSession = Depends(get_db),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-    settings: Settings = Depends(get_settings),
+    settings: BaseAppSettings = Depends(get_settings),
 ) -> UserLoginResponseSchema:
     db_user = await get_user_by_email(db, login_data.email)
 

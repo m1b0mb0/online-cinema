@@ -8,4 +8,4 @@ app = FastAPI(
 )
 
 
-app.include_router(accounts_router)
+app.include_router(accounts_router, prefix=f"/accounts")
