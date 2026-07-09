@@ -23,6 +23,7 @@ from src.database import (
     RefreshTokenModel,
 )
 from src.exceptions import BaseSecurityError
+from src.security.dependencies import get_current_active_user
 from src.security.interfaces import JWTAuthManagerInterface
 from src.notifications import EmailSenderInterface
 from src.schemas.accounts import (
@@ -275,8 +276,6 @@ async def reset_password(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email or token."
         )
 
-    db_user.password = data.password
-
     try:
         db_user.password = data.password
         await db.delete(password_token)
@@ -420,6 +419,12 @@ async def access_token_refresh(
     if not db_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
+        )
+
+    if not db_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is not activated.",
         )
 
     new_access_token = jwt_manager.create_access_token({"user_id": user_id})
