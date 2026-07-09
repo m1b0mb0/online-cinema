@@ -155,8 +155,6 @@ class RefreshTokenModel(TokenBaseModel):
 
     user: Mapped[UserModel] = relationship(back_populates="refresh_tokens")
 
-    __table_args__ = (UniqueConstraint("user_id"),)
-
     @classmethod
     def create(
         cls, user_id: int | Mapped[int], days_valid: int, token: str
