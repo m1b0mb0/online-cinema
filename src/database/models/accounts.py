@@ -70,6 +70,10 @@ class UserModel(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
 
+    profile: Mapped[Optional["UserProfileModel"]] = relationship(
+        back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+
     @classmethod
     def create(
         cls, email: str, raw_password: str, group_id: int | Mapped[int]
@@ -97,7 +101,7 @@ class UserProfileModel(Base):
     __tablename__ = "user_profiles"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    frist_name: Mapped[Optional[str]] = mapped_column(String(100))
+    first_name: Mapped[Optional[str]] = mapped_column(String(100))
     last_name: Mapped[Optional[str]] = mapped_column(String(100))
     avatar: Mapped[Optional[str]] = mapped_column(String(255))
     gender: Mapped[Optional[GenderEnum]]
