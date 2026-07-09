@@ -10,4 +10,5 @@ from src.schemas.accounts import (
     UserLogoutRequestSchema,
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema,
+    ChangePasswordRequestSchema,
 )

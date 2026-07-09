@@ -32,8 +32,14 @@ class PasswordResetCompleteRequestSchema(BaseEmailPasswordSchema):
     token: str
 
 
-class UserLoginRequestSchema(BaseEmailPasswordSchema):
-    pass
+class UserLoginRequestSchema(BaseModel):
+    email: EmailStr
+    password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value):
+        return value.lower()
 
 
 class UserLoginResponseSchema(BaseModel):
@@ -69,3 +75,13 @@ class TokenRefreshRequestSchema(BaseModel):
 class TokenRefreshResponseSchema(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class ChangePasswordRequestSchema(BaseModel):
+    old_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, value):
+        return accounts_validators.validate_password_strength(value)
