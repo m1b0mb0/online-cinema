@@ -37,6 +37,7 @@ from src.schemas.accounts import (
     UserLogoutRequestSchema,
     TokenRefreshRequestSchema,
     TokenRefreshResponseSchema,
+    ChangePasswordRequestSchema,
 )
 
 router = APIRouter()
@@ -277,6 +278,7 @@ async def reset_password(
     db_user.password = data.password
 
     try:
+        db_user.password = data.password
         await db.delete(password_token)
         await db.commit()
     except SQLAlchemyError:
@@ -293,6 +295,31 @@ async def reset_password(
     )
 
     return MessageResponseSchema(message="Password reset successfully.")
+
+
+@router.post("/change-password/", response_model=MessageResponseSchema)
+async def change_password(
+    data: ChangePasswordRequestSchema,
+    user: UserModel = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponseSchema:
+    if not user.verify_password(data.old_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        )
+
+    try:
+        user.password = data.new_password
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while changing the password.",
+        )
+
+    return MessageResponseSchema(message="Password changed successfully.")
 
 
 @router.post(
