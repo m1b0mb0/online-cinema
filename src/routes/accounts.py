@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 from typing import cast
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
+from pydantic import EmailStr
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,6 +50,71 @@ async def get_user_by_email(db: AsyncSession, email: str) -> UserModel | None:
     return await db.scalar(select(UserModel).where(UserModel.email == email))
 
 
+def build_account_link(
+    settings: BaseAppSettings, path: str, query_params: dict[str, str] | None = None
+) -> str:
+    if not query_params:
+        return f"{settings.APP_BASE_URL}{path}"
+    return f"{settings.APP_BASE_URL}{path}?{urlencode(query_params)}"
+
+
+async def activate_user_account(
+    token_record: UserActivationRequestSchema,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession,
+    settings: BaseAppSettings,
+    email_sender: EmailSenderInterface,
+) -> MessageResponseSchema:
+    db_user = await get_user_by_email(db, token_record.email)
+
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired activation token.",
+        )
+
+    if db_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User account is already active.",
+        )
+
+    activation_token = await db.scalar(
+        select(ActivationTokenModel).where(
+            ActivationTokenModel.token == token_record.token,
+            ActivationTokenModel.user_id == db_user.id,
+        )
+    )
+
+    if not activation_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired activation token.",
+        )
+
+    expires_at = cast(datetime, activation_token.expires_at).replace(
+        tzinfo=timezone.utc
+    )
+
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired activation token.",
+        )
+
+    db_user.is_active = True
+    await db.delete(activation_token)
+    await db.commit()
+
+    login_link = build_account_link(settings, "/accounts/login/")
+
+    background_tasks.add_task(
+        email_sender.send_activation_complete_email, str(token_record.email), login_link
+    )
+
+    return MessageResponseSchema(message="User account activated successfully.")
+
+
 @router.post(
     "/register/",
     response_model=UserRegistrationResponseSchema,
@@ -57,6 +124,7 @@ async def create_user(
     user_data: UserRegistrationRequestSchema,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> UserRegistrationResponseSchema:
     existing_user = await get_user_by_email(db, user_data.email)
@@ -100,8 +168,10 @@ async def create_user(
             detail="An error occurred during user creation.",
         ) from e
     else:
-        activation_link = (
-            f"http://127.0.0.1/accounts/activate/?token={activation_token.token}"
+        activation_link = build_account_link(
+            settings,
+            "/accounts/activate/",
+            {"email": str(new_user.email), "token": activation_token.token},
         )
 
         background_tasks.add_task(
@@ -116,56 +186,27 @@ async def activate_user(
     token_record: UserActivationRequestSchema,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
-    db_user = await get_user_by_email(db, token_record.email)
-
-    if not db_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired activation token.",
-        )
-
-    if db_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User account is already active.",
-        )
-
-    activation_token = await db.scalar(
-        select(ActivationTokenModel).where(
-            ActivationTokenModel.token == token_record.token,
-            ActivationTokenModel.user_id == db_user.id,
-        )
+    return await activate_user_account(
+        token_record, background_tasks, db, settings, email_sender
     )
 
-    if not activation_token:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired activation token.",
-        )
 
-    expires_at = cast(datetime, activation_token.expires_at).replace(
-        tzinfo=timezone.utc
+@router.get("/activate/", response_model=MessageResponseSchema)
+async def activate_user_from_email_link(
+    email: EmailStr,
+    token: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
+    email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
+) -> MessageResponseSchema:
+    token_record = UserActivationRequestSchema(email=email, token=token)
+    return await activate_user_account(
+        token_record, background_tasks, db, settings, email_sender
     )
-
-    if expires_at < datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired activation token.",
-        )
-
-    db_user.is_active = True
-    await db.delete(activation_token)
-    await db.commit()
-
-    login_link = "http://127.0.0.1/accounts/login/"
-
-    background_tasks.add_task(
-        email_sender.send_activation_complete_email, str(token_record.email), login_link
-    )
-
-    return MessageResponseSchema(message="User account activated successfully.")
 
 
 @router.post("/resend-activation/", response_model=MessageResponseSchema)
@@ -173,6 +214,7 @@ async def resend_activation_token(
     data: PasswordResetRequestSchema,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
 
@@ -191,8 +233,10 @@ async def resend_activation_token(
     db.add(activation_token)
     await db.commit()
 
-    activation_link = (
-        f"http://127.0.0.1/accounts/activate/?token={activation_token.token}"
+    activation_link = build_account_link(
+        settings,
+        "/accounts/activate/",
+        {"email": str(user.email), "token": activation_token.token},
     )
     background_tasks.add_task(
         email_sender.send_activation_email, str(user.email), activation_link
@@ -208,6 +252,7 @@ async def reset_password_token(
     request_data: PasswordResetRequestSchema,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     db_user = await get_user_by_email(db, request_data.email)
@@ -227,8 +272,10 @@ async def reset_password_token(
     db.add(reset_token)
     await db.commit()
 
-    password_reset_complete_link = (
-        f"http://127.0.0.1/accounts/password-reset-complete/?token={reset_token.token}"
+    password_reset_complete_link = build_account_link(
+        settings,
+        "/accounts/reset-password/complete/",
+        {"email": str(request_data.email), "token": reset_token.token},
     )
 
     background_tasks.add_task(
@@ -247,6 +294,7 @@ async def reset_password(
     data: PasswordResetCompleteRequestSchema,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_accounts_email_notificator),
 ) -> MessageResponseSchema:
     db_user = await get_user_by_email(db, data.email)
@@ -287,7 +335,7 @@ async def reset_password(
             detail="An error occurred while resetting the password.",
         )
 
-    login_link = "http://127.0.0.1/accounts/login/"
+    login_link = build_account_link(settings, "/accounts/login/")
 
     background_tasks.add_task(
         email_sender.send_password_reset_complete_email, str(data.email), login_link

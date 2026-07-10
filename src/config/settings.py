@@ -8,6 +8,7 @@ load_dotenv()
 
 class BaseAppSettings(BaseSettings):
     BASE_DIR: Path = Path(__file__).parent.parent
+    APP_BASE_URL: str = os.getenv("APP_BASE_URL", "http://127.0.0.1:8000")
 
     PATH_TO_EMAIL_TEMPLATES_DIR: str = str(BASE_DIR / "notifications" / "templates")
     ACTIVATION_EMAIL_TEMPLATE_NAME: str = "activation_request.html"
