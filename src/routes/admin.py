@@ -4,7 +4,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.security.dependencies import get_admin_user
-from src.schemas.accounts import MessageResponseSchema
+from src.schemas.accounts import ChangeUserGroupRequestSchema, MessageResponseSchema
 from src.database import get_db, UserModel, UserGroupModel, UserGroupEnum
 
 router = APIRouter()
@@ -12,8 +12,8 @@ router = APIRouter()
 
 @router.post("/users/{user_id}/group/", response_model=MessageResponseSchema)
 async def change_user_group(
-    group_name: str,
     user_id: int,
+    group_data: ChangeUserGroupRequestSchema,
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_admin_user),
 ) -> MessageResponseSchema:
@@ -29,7 +29,7 @@ async def change_user_group(
         )
 
     new_group = await db.scalar(
-        select(UserGroupModel).where(UserGroupModel.name == group_name)
+        select(UserGroupModel).where(UserGroupModel.name == group_data.group_name)
     )
     if not new_group:
         raise HTTPException(

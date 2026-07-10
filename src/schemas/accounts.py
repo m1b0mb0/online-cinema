@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, field_validator
 
-from src.database import accounts_validators
+from src.database import UserGroupEnum, accounts_validators
 
 
 class BaseEmailPasswordSchema(BaseModel):
@@ -85,3 +85,14 @@ class ChangePasswordRequestSchema(BaseModel):
     @classmethod
     def validate_password(cls, value):
         return accounts_validators.validate_password_strength(value)
+
+
+class ChangeUserGroupRequestSchema(BaseModel):
+    group_name: UserGroupEnum
+
+    @field_validator("group_name", mode="before")
+    @classmethod
+    def normalize_group_name(cls, value):
+        if isinstance(value, str):
+            return value.lower()
+        return value
