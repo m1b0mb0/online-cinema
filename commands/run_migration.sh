@@ -6,6 +6,12 @@ MIGRATIONS_DIR="/usr/src/fastapi/src/database/migrations/versions"
 
 echo "Checking for changes before generating a migration..."
 
+run_seed() {
+    echo "Running database seed script..."
+    python -m src.database.populate
+    echo "Database seed script completed."
+}
+
 # Ensure the migrations folder exists
 if [ ! -d "$MIGRATIONS_DIR" ]; then
     echo "Migrations folder does not exist. Creating it..."
@@ -26,6 +32,8 @@ if ! psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dt" | g
 
     echo "Applying all migrations..."
     alembic -c $ALEMBIC_CONFIG upgrade head
+
+    run_seed
 
     exit 0
 fi
@@ -52,7 +60,4 @@ else
     alembic -c $ALEMBIC_CONFIG upgrade head
 fi
 
-# Run database saver script
-echo "Running database saver script..."
-python -m database.populate
-echo "Database saver script completed."
+run_seed
