@@ -7,10 +7,47 @@ from src.security.dependencies import get_admin_user
 from src.schemas.accounts import ChangeUserGroupRequestSchema, MessageResponseSchema
 from src.database import get_db, UserModel, UserGroupModel, UserGroupEnum
 
-router = APIRouter()
+router = APIRouter(tags=["Admin"])
 
 
-@router.post("/users/{user_id}/group/", response_model=MessageResponseSchema)
+@router.post(
+    "/users/{user_id}/group/",
+    response_model=MessageResponseSchema,
+    summary="Change User Group",
+    description=(
+        "Allow an administrator to change a user's group. Accepted groups are "
+        "`user`, `moderator`, and `admin`."
+    ),
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {
+            "description": "Bad Request - The requested group does not exist.",
+            "content": {
+                "application/json": {"example": {"detail": "Invalid group name."}}
+            },
+        },
+        401: {
+            "description": "Unauthorized - Access token is missing or invalid.",
+            "content": {
+                "application/json": {"example": {"detail": "Not authenticated"}}
+            },
+        },
+        403: {
+            "description": "Forbidden - Administrator privileges are required.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Administrator privileges are required."}
+                }
+            },
+        },
+        404: {
+            "description": "Not Found - Target user does not exist.",
+            "content": {
+                "application/json": {"example": {"detail": "User not found."}}
+            },
+        },
+    },
+)
 async def change_user_group(
     user_id: int,
     group_data: ChangeUserGroupRequestSchema,
@@ -42,7 +79,44 @@ async def change_user_group(
     return MessageResponseSchema(message="User group has been updated successfully.")
 
 
-@router.post("/users/{user_id}/activate/", response_model=MessageResponseSchema)
+@router.post(
+    "/users/{user_id}/activate/",
+    response_model=MessageResponseSchema,
+    summary="Manually Activate User Account",
+    description=(
+        "Allow an administrator to manually activate a user account without an "
+        "activation token."
+    ),
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {
+            "description": "Bad Request - User account is already active.",
+            "content": {
+                "application/json": {"example": {"detail": "User is already active."}}
+            },
+        },
+        401: {
+            "description": "Unauthorized - Access token is missing or invalid.",
+            "content": {
+                "application/json": {"example": {"detail": "Not authenticated"}}
+            },
+        },
+        403: {
+            "description": "Forbidden - Administrator privileges are required.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Administrator privileges are required."}
+                }
+            },
+        },
+        404: {
+            "description": "Not Found - Target user does not exist.",
+            "content": {
+                "application/json": {"example": {"detail": "User not found."}}
+            },
+        },
+    },
+)
 async def activate_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
