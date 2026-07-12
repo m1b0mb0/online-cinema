@@ -97,6 +97,7 @@ services:
   celery_worker:
     build: .
     container_name: celery_worker_cinema
+    user: appuser
     command: ["/bin/bash", "-c", "celery -A src.celery_app.celery_app:celery_app worker --loglevel=info"]
     env_file:
       - .env
@@ -112,7 +113,8 @@ services:
   celery_beat:
     build: .
     container_name: celery_beat_cinema
-    command: ["/bin/bash", "-c", "celery -A src.celery_app.celery_app:celery_app beat --loglevel=info"]
+    user: appuser
+    command: ["/bin/bash", "-c", "celery -A src.celery_app.celery_app:celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule"]
     env_file:
       - .env
     environment:

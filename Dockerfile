@@ -34,3 +34,6 @@ RUN dos2unix /commands/*.sh
 
 # Add execute bit to commands files
 RUN chmod +x /commands/*.sh
+
+# Runtime user for services that should not run with root privileges.
+RUN groupadd --system appuser && useradd --system --gid appuser --home-dir /home/appuser --create-home appuser
