@@ -12,6 +12,17 @@ from src.database.models.accounts import (
 )
 from src.database.validators import accounts as accounts_validators
 
+from src.database.models.movies import (
+    MovieModel,
+    StarModel,
+    GenreModel,
+    DirectorModel,
+    CertificationModel,
+    MovieStarsModel,
+    MovieGenresModel,
+    MovieDirectorsModel,
+)
+
 environment = os.getenv("ENVIRONMENT", "developing")
 
 if environment == "testing":
