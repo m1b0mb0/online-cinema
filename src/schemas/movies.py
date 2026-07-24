@@ -2,7 +2,54 @@ from typing import Annotated
 from uuid import UUID
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class MovieFilterParams(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    page: int = Field(default=1, ge=1)
+    per_page: int = Field(default=10, ge=1, le=20)
+
+    search: str | None = Field(default=None, min_length=1, max_length=100)
+
+    years: list[int] | None = None
+    year_from: int | None = Field(default=None, gt=0)
+    year_to: int | None = Field(default=None, gt=0)
+
+    imdb_min: float | None = Field(default=None, ge=0, le=10)
+    imdb_max: float | None = Field(default=None, ge=0, le=10)
+
+    price_min: Decimal | None = Field(default=None, ge=0)
+    price_max: Decimal | None = Field(default=None, ge=0)
+
+    genre_ids: list[int] | None = None
+    certification_ids: list[int] | None = None
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> "MovieFilterParams":
+        if (
+            self.year_from is not None
+            and self.year_to is not None
+            and self.year_from > self.year_to
+        ):
+            raise ValueError("year_from cannot be greater than year_to.")
+
+        if (
+            self.imdb_min is not None
+            and self.imdb_max is not None
+            and self.imdb_min > self.imdb_max
+        ):
+            raise ValueError("imdb_min cannot be greater than imdb_max.")
+
+        if (
+            self.price_min is not None
+            and self.price_max is not None
+            and self.price_min > self.price_max
+        ):
+            raise ValueError("price_min cannot be greater than price_max.")
+
+        return self
 
 
 class CertificationSchema(BaseModel):
@@ -35,8 +82,8 @@ class DirectorSchema(BaseModel):
 
 class MovieBaseSchema(BaseModel):
     name: str = Field(max_length=250)
-    year: int = Field(ge=0)
-    time: int = Field(ge=0)
+    year: int = Field(gt=0)
+    time: int = Field(gt=0)
     imdb: float = Field(ge=0, le=10)
     votes: int = Field(ge=0)
     meta_score: float | None = Field(default=None, ge=0, le=100)
@@ -100,8 +147,8 @@ class MovieCreateSchema(MovieBaseSchema):
 
 class MovieUpdateSchema(BaseModel):
     name: str | None = Field(default=None, max_length=250)
-    year: int | None = Field(default=None, ge=0)
-    time: int | None = Field(default=None, ge=0)
+    year: int | None = Field(default=None, gt=0)
+    time: int | None = Field(default=None, gt=0)
     imdb: float | None = Field(default=None, ge=0, le=10)
     votes: int | None = Field(default=None, ge=0)
     meta_score: float | None = Field(default=None, ge=0, le=100)

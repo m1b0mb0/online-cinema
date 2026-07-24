@@ -22,4 +22,5 @@ from src.schemas.movies import (
     MovieDetailSchema,
     MovieCreateSchema,
     MovieUpdateSchema,
+    MovieFilterParams,
 )

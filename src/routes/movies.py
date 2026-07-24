@@ -1,6 +1,7 @@
 import math
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, status, HTTPException, Query
+from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
 from sqlalchemy import desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,47 +21,71 @@ from src.schemas.movies import (
     MovieDetailSchema,
     MovieListItemSchema,
     MovieListResponseSchema,
+    MovieFilterParams,
 )
 from src.database import get_db
 from src.security.dependencies import get_admin_user, get_moderator_or_admin_user
+from src.services import apply_movie_filters
 
 router = APIRouter()
 
 
 @router.get("/movies/", response_model=MovieListResponseSchema)
 async def get_movie_list(
-    page: int = Query(default=1, ge=1, description="Page number"),
-    per_page: int = Query(
-        default=10, ge=1, le=20, description="Number of items per page"
-    ),
+    request: Request,
+    filters: Annotated[MovieFilterParams, Query()],
     db: AsyncSession = Depends(get_db),
 ) -> MovieListResponseSchema:
-    offset = (page - 1) * per_page
+    filtered_stmt = apply_movie_filters(
+        statement=select(MovieModel),
+        filters=filters,
+    )
 
-    count_stmt = select(func.count(MovieModel.id))
+    offset = (filters.page - 1) * filters.per_page
+
+    count_stmt = select(func.count()).select_from(
+        filtered_stmt.order_by(None).subquery()
+    )
     total_items = await db.scalar(count_stmt) or 0
 
     movies_stmt = (
-        select(MovieModel).order_by(desc(MovieModel.id)).offset(offset).limit(per_page)
+        filtered_stmt.order_by(desc(MovieModel.id))
+        .offset(offset)
+        .limit(filters.per_page)
     )
-    movies = (await db.scalars(movies_stmt)).all()
+
+    movies = list((await db.scalars(movies_stmt)).all())
 
     movie_list = [MovieListItemSchema.model_validate(movie) for movie in movies]
 
-    total_pages = math.ceil(total_items / per_page)
+    total_pages = math.ceil(total_items / filters.per_page)
+
+    prev_page = (
+        str(
+            request.url.include_query_params(
+                page=filters.page - 1,
+                per_page=filters.per_page,
+            )
+        )
+        if filters.page > 1
+        else None
+    )
+
+    next_page = (
+        str(
+            request.url.include_query_params(
+                page=filters.page + 1,
+                per_page=filters.per_page,
+            )
+        )
+        if filters.page < total_pages
+        else None
+    )
 
     return MovieListResponseSchema(
         movies=movie_list,
-        prev_page=(
-            f"/theater/movies/?page={page - 1}&per_page={per_page}"
-            if page > 1
-            else None
-        ),
-        next_page=(
-            f"/theater/movies/?page={page + 1}&per_page={per_page}"
-            if page < total_pages
-            else None
-        ),
+        prev_page=prev_page,
+        next_page=next_page,
         total_pages=total_pages,
         total_items=total_items,
     )

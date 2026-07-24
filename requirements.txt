@@ -1,4 +1,4 @@
-fastapi[all]==0.110.0
+fastapi[all]
 uvicorn==0.28.0
 sqlalchemy==2.0.29
 alembic==1.13.1
@@ -10,7 +10,7 @@ bcrypt==4.0.1
 python-jose==3.5.0
 celery==5.3.6
 redis==5.0.3
-fastapi-mail==1.4.1
+fastapi-mail
 aiosqlite==0.20.0
 httpx==0.27.0
 pytest==8.2.0
