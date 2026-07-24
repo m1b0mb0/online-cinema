@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from src.database import (
+    UserModel,
     MovieModel,
     CertificationModel,
     StarModel,
@@ -21,6 +22,7 @@ from src.schemas.movies import (
     MovieListResponseSchema,
 )
 from src.database import get_db
+from src.security.dependencies import get_admin_user, get_moderator_or_admin_user
 
 router = APIRouter()
 
@@ -64,9 +66,13 @@ async def get_movie_list(
     )
 
 
-@router.post("/movies/", response_model=MovieDetailSchema)
+@router.post(
+    "/movies/", response_model=MovieDetailSchema, status_code=status.HTTP_201_CREATED
+)
 async def create_movie(
-    movie_data: MovieCreateSchema, db: AsyncSession = Depends(get_db)
+    movie_data: MovieCreateSchema,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_moderator_or_admin_user),
 ) -> MovieDetailSchema:
     existing_movie = await db.scalar(
         select(MovieModel).where(
@@ -187,7 +193,10 @@ async def get_movie_by_uuid(
 
 @router.patch("/movies/{movie_uuid}/")
 async def update_movie(
-    movie_uuid: str, movie_data: MovieUpdateSchema, db: AsyncSession = Depends(get_db)
+    movie_uuid: str,
+    movie_data: MovieUpdateSchema,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_moderator_or_admin_user),
 ):
     movie = await db.scalar(select(MovieModel).where(MovieModel.uuid == movie_uuid))
 
@@ -213,7 +222,11 @@ async def update_movie(
 
 
 @router.delete("/movies/{movie_uuid}/", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_movie(movie_uuid: str, db: AsyncSession = Depends(get_db)):
+async def delete_movie(
+    movie_uuid: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_admin_user),
+):
     movie = await db.scalar(select(MovieModel).where(MovieModel.uuid == movie_uuid))
 
     if not movie:
