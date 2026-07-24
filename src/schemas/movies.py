@@ -1,8 +1,8 @@
-from typing import Optional
+from typing import Annotated, Optional
 from uuid import UUID
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CertificationSchema(BaseModel):
@@ -77,3 +77,22 @@ class MovieListResponseSchema(BaseModel):
     next_page: Optional[str]
     total_pages: int
     total_items: int
+
+
+StarName = Annotated[str, Field(max_length=100)]
+DirectorName = Annotated[str, Field(max_length=100)]
+GenreName = Annotated[str, Field(max_length=100)]
+
+
+class MovieCreateSchema(MovieBaseSchema):
+    certification: str = Field(max_length=100)
+    stars: list[StarName]
+    genres: list[GenreName]
+    directors: list[DirectorName]
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("stars", "genres", "directors", mode="before")
+    @classmethod
+    def normalize_list_fields(cls, value: list[str]) -> list[str]:
+        return [item.title() for item in value]

@@ -20,4 +20,5 @@ from src.schemas.movies import (
     MovieListItemSchema,
     MovieListResponseSchema,
     MovieDetailSchema,
+    MovieCreateSchema,
 )

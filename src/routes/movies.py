@@ -2,13 +2,19 @@ import math
 
 from fastapi import APIRouter, Depends, status, HTTPException, Query
 from sqlalchemy import desc, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from src.database import (
     MovieModel,
+    CertificationModel,
+    StarModel,
+    GenreModel,
+    DirectorModel,
 )
 from src.schemas.movies import (
+    MovieCreateSchema,
     MovieDetailSchema,
     MovieListItemSchema,
     MovieListResponseSchema,
@@ -55,6 +61,101 @@ async def get_movie_list(
         total_pages=total_pages,
         total_items=total_items,
     )
+
+
+@router.post("/movies/", response_model=MovieDetailSchema)
+async def create_movie(
+    movie_data: MovieCreateSchema, db: AsyncSession = Depends(get_db)
+) -> MovieDetailSchema:
+    existing_movie = await db.scalar(
+        select(MovieModel).where(
+            MovieModel.name == movie_data.name,
+            MovieModel.year == movie_data.year,
+            MovieModel.time == movie_data.time,
+        )
+    )
+
+    if existing_movie:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"A movie with the name '{movie_data.name}', year "
+                f"'{movie_data.year}' and time '{movie_data.time}' already exists."
+            ),
+        )
+
+    try:
+        certification = await db.scalar(
+            select(CertificationModel).where(
+                CertificationModel.name == movie_data.certification
+            )
+        )
+
+        if not certification:
+            certification = CertificationModel(name=movie_data.certification)
+            db.add(certification)
+            await db.flush()
+
+        stars = []
+        for star_name in movie_data.stars:
+            star = await db.scalar(select(StarModel).where(StarModel.name == star_name))
+
+            if not star:
+                star = StarModel(name=star_name)
+                db.add(star)
+                await db.flush()
+            stars.append(star)
+
+        genres = []
+        for genre_name in movie_data.genres:
+            genre = await db.scalar(
+                select(GenreModel).where(GenreModel.name == genre_name)
+            )
+
+            if not genre:
+                genre = GenreModel(name=genre_name)
+                db.add(genre)
+                await db.flush()
+            genres.append(genre)
+
+        directors = []
+        for director_name in movie_data.directors:
+            director = await db.scalar(
+                select(DirectorModel).where(DirectorModel.name == director_name)
+            )
+
+            if not director:
+                director = DirectorModel(name=director_name)
+                db.add(director)
+                await db.flush()
+            directors.append(director)
+
+        movie = MovieModel(
+            name=movie_data.name,
+            year=movie_data.year,
+            time=movie_data.time,
+            imdb=movie_data.imdb,
+            votes=movie_data.votes,
+            meta_score=movie_data.meta_score,
+            gross=movie_data.gross,
+            description=movie_data.description,
+            price=movie_data.price,
+            certification=certification,
+            stars=stars,
+            genres=genres,
+            directors=directors,
+        )
+        db.add(movie)
+        await db.commit()
+        await db.refresh(movie, ["stars", "genres", "directors"])
+
+        return MovieDetailSchema.model_validate(movie)
+
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data."
+        )
 
 
 @router.get("/movies/{movie_uuid}/", response_model=MovieDetailSchema)
