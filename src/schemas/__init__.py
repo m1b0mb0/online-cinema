@@ -21,4 +21,5 @@ from src.schemas.movies import (
     MovieListResponseSchema,
     MovieDetailSchema,
     MovieCreateSchema,
+    MovieUpdateSchema,
 )

@@ -1,4 +1,4 @@
-from typing import Annotated, Optional
+from typing import Annotated
 from uuid import UUID
 from decimal import Decimal
 
@@ -73,8 +73,8 @@ class MovieListItemSchema(BaseModel):
 
 class MovieListResponseSchema(BaseModel):
     movies: list[MovieListItemSchema]
-    prev_page: Optional[str]
-    next_page: Optional[str]
+    prev_page: str | None
+    next_page: str | None
     total_pages: int
     total_items: int
 
@@ -96,3 +96,17 @@ class MovieCreateSchema(MovieBaseSchema):
     @classmethod
     def normalize_list_fields(cls, value: list[str]) -> list[str]:
         return [item.title() for item in value]
+
+
+class MovieUpdateSchema(BaseModel):
+    name: str | None = Field(default=None, max_length=250)
+    year: int | None = Field(default=None, ge=0)
+    time: int | None = Field(default=None, ge=0)
+    imdb: float | None = Field(default=None, ge=0, le=10)
+    votes: int | None = Field(default=None, ge=0)
+    meta_score: float | None = Field(default=None, ge=0, le=100)
+    gross: float | None = Field(default=None, ge=0)
+    description: str | None = None
+    price: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
+
+    model_config = ConfigDict(from_attributes=True)

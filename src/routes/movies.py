@@ -14,6 +14,7 @@ from src.database import (
     DirectorModel,
 )
 from src.schemas.movies import (
+    MovieUpdateSchema,
     MovieCreateSchema,
     MovieDetailSchema,
     MovieListItemSchema,
@@ -182,3 +183,46 @@ async def get_movie_by_uuid(
         )
 
     return MovieDetailSchema.model_validate(movie)
+
+
+@router.patch("/movies/{movie_uuid}/")
+async def update_movie(
+    movie_uuid: str, movie_data: MovieUpdateSchema, db: AsyncSession = Depends(get_db)
+):
+    movie = await db.scalar(select(MovieModel).where(MovieModel.uuid == movie_uuid))
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given UUID was not found.",
+        )
+
+    for field, value in movie_data.model_dump(exclude_unset=True).items():
+        setattr(movie, field, value)
+
+    try:
+        await db.commit()
+        await db.refresh(movie)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data."
+        )
+
+    return {"detail": "Movie updated successfully."}
+
+
+@router.delete("/movies/{movie_uuid}/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_movie(movie_uuid: str, db: AsyncSession = Depends(get_db)):
+    movie = await db.scalar(select(MovieModel).where(MovieModel.uuid == movie_uuid))
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given UUID was not found.",
+        )
+
+    await db.delete(movie)
+    await db.commit()
+
+    return {"detail": "Movie deleted successfully."}
