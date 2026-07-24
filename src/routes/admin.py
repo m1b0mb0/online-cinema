@@ -7,7 +7,7 @@ from src.security.dependencies import get_admin_user
 from src.schemas.accounts import ChangeUserGroupRequestSchema, MessageResponseSchema
 from src.database import get_db, UserModel, UserGroupModel, UserGroupEnum
 
-router = APIRouter(tags=["Admin"])
+router = APIRouter()
 
 
 @router.post(
@@ -42,9 +42,7 @@ router = APIRouter(tags=["Admin"])
         },
         404: {
             "description": "Not Found - Target user does not exist.",
-            "content": {
-                "application/json": {"example": {"detail": "User not found."}}
-            },
+            "content": {"application/json": {"example": {"detail": "User not found."}}},
         },
     },
 )
@@ -111,9 +109,7 @@ async def change_user_group(
         },
         404: {
             "description": "Not Found - Target user does not exist.",
-            "content": {
-                "application/json": {"example": {"detail": "User not found."}}
-            },
+            "content": {"application/json": {"example": {"detail": "User not found."}}},
         },
     },
 )

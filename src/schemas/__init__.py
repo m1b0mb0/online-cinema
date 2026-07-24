@@ -12,3 +12,7 @@ from src.schemas.accounts import (
     TokenRefreshResponseSchema,
     ChangePasswordRequestSchema,
 )
+from src.schemas.movies import (
+    MovieListItemSchema,
+    MovieListResponseSchema,
+)

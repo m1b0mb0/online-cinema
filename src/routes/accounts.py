@@ -47,7 +47,7 @@ from src.schemas.accounts import (
     ChangePasswordRequestSchema,
 )
 
-router = APIRouter(tags=["Accounts"])
+router = APIRouter()
 
 
 @router.post(
@@ -463,7 +463,9 @@ async def reset_password(
             "description": "Internal Server Error - An error occurred while changing the password.",
             "content": {
                 "application/json": {
-                    "example": {"detail": "An error occurred while changing the password."}
+                    "example": {
+                        "detail": "An error occurred while changing the password."
+                    }
                 }
             },
         },
@@ -583,9 +585,7 @@ async def login(
         200: {
             "description": "Refresh token revoked or already absent.",
             "content": {
-                "application/json": {
-                    "example": {"message": "Successfully logged out."}
-                }
+                "application/json": {"example": {"message": "Successfully logged out."}}
             },
         },
     },
