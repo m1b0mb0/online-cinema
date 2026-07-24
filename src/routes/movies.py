@@ -1,13 +1,15 @@
 import math
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, status, HTTPException, Query
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
 
 from src.database import (
     MovieModel,
 )
 from src.schemas.movies import (
+    MovieDetailSchema,
     MovieListItemSchema,
     MovieListResponseSchema,
 )
@@ -53,3 +55,29 @@ async def get_movie_list(
         total_pages=total_pages,
         total_items=total_items,
     )
+
+
+@router.get("/movies/{movie_uuid}/", response_model=MovieDetailSchema)
+async def get_movie_by_uuid(
+    movie_uuid: str, db: AsyncSession = Depends(get_db)
+) -> MovieDetailSchema:
+    stmt = (
+        select(MovieModel)
+        .options(
+            joinedload(MovieModel.certification),
+            selectinload(MovieModel.stars),
+            selectinload(MovieModel.genres),
+            selectinload(MovieModel.directors),
+        )
+        .where(MovieModel.uuid == movie_uuid)
+    )
+
+    movie = await db.scalar(stmt)
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given UUID was not found.",
+        )
+
+    return MovieDetailSchema.model_validate(movie)

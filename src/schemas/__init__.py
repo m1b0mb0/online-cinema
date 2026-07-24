@@ -13,6 +13,11 @@ from src.schemas.accounts import (
     ChangePasswordRequestSchema,
 )
 from src.schemas.movies import (
+    CertificationSchema,
+    StarSchema,
+    GenreSchema,
+    DirectorSchema,
     MovieListItemSchema,
     MovieListResponseSchema,
+    MovieDetailSchema,
 )
