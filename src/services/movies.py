@@ -2,7 +2,32 @@ from sqlalchemy import or_
 from sqlalchemy.sql import Select
 
 from src.database import MovieModel, GenreModel, CertificationModel
-from src.schemas import MovieFilterParams
+from src.schemas import MovieFilterParams, MovieSortField, SortOrder
+
+SORT_COLUMNS = {
+    MovieSortField.NEWEST: MovieModel.id,
+    MovieSortField.NAME: MovieModel.name,
+    MovieSortField.YEAR: MovieModel.year,
+    MovieSortField.PRICE: MovieModel.price,
+    MovieSortField.IMDB: MovieModel.imdb,
+    MovieSortField.POPULARITY: MovieModel.votes,
+}
+
+
+def apply_movie_sorting(statement: Select, filters: MovieFilterParams) -> Select:
+    column = SORT_COLUMNS[filters.sort_by]
+
+    primary_order = (
+        column.asc() if filters.sort_order == SortOrder.ASC else column.desc()
+    )
+
+    tie_breaker = (
+        MovieModel.id.asc()
+        if filters.sort_order == SortOrder.ASC
+        else MovieModel.id.desc()
+    )
+
+    return statement.order_by(primary_order, tie_breaker)
 
 
 def apply_movie_filters(statement: Select, filters: MovieFilterParams) -> Select:

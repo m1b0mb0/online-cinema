@@ -25,7 +25,7 @@ from src.schemas.movies import (
 )
 from src.database import get_db
 from src.security.dependencies import get_admin_user, get_moderator_or_admin_user
-from src.services import apply_movie_filters
+from src.services import apply_movie_filters, apply_movie_sorting
 
 router = APIRouter()
 
@@ -41,18 +41,16 @@ async def get_movie_list(
         filters=filters,
     )
 
-    offset = (filters.page - 1) * filters.per_page
-
     count_stmt = select(func.count()).select_from(
         filtered_stmt.order_by(None).subquery()
     )
     total_items = await db.scalar(count_stmt) or 0
 
-    movies_stmt = (
-        filtered_stmt.order_by(desc(MovieModel.id))
-        .offset(offset)
-        .limit(filters.per_page)
-    )
+    sorted_stmt = apply_movie_sorting(statement=filtered_stmt, filters=filters)
+
+    offset = (filters.page - 1) * filters.per_page
+
+    movies_stmt = sorted_stmt.offset(offset).limit(filters.per_page)
 
     movies = list((await db.scalars(movies_stmt)).all())
 

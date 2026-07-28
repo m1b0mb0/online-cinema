@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
 from decimal import Decimal
@@ -5,11 +6,28 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
+class MovieSortField(StrEnum):
+    NEWEST = "newest"
+    NAME = "name"
+    YEAR = "year"
+    PRICE = "price"
+    IMDB = "imdb"
+    POPULARITY = "popularity"
+
+
+class SortOrder(StrEnum):
+    ASC = "asc"
+    DESC = "desc"
+
+
 class MovieFilterParams(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=10, ge=1, le=20)
+
+    sort_by: MovieSortField = MovieSortField.NEWEST
+    sort_order: SortOrder = SortOrder.DESC
 
     search: str | None = Field(default=None, min_length=1, max_length=100)
 

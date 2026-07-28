@@ -23,4 +23,6 @@ from src.schemas.movies import (
     MovieCreateSchema,
     MovieUpdateSchema,
     MovieFilterParams,
+    MovieSortField,
+    SortOrder,
 )
