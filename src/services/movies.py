@@ -8,7 +8,9 @@ from src.database import (
     MovieModel,
     GenreModel,
     CertificationModel,
+    DirectorModel,
     MovieGenresModel,
+    StarModel,
 )
 from src.schemas import MovieFilterParams, MovieSortField, SortOrder
 
@@ -48,6 +50,8 @@ def apply_movie_filters(statement: Select, filters: MovieFilterParams) -> Select
             or_(
                 MovieModel.name.ilike(search_pattern),
                 MovieModel.description.ilike(search_pattern),
+                MovieModel.stars.any(StarModel.name.ilike(search_pattern)),
+                MovieModel.directors.any(DirectorModel.name.ilike(search_pattern)),
             )
         )
 

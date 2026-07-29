@@ -1,7 +1,8 @@
 import math
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, status, HTTPException, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +25,7 @@ from src.schemas.movies import (
     MovieFilterParams,
 )
 from src.database import get_db
-from src.security.dependencies import get_admin_user, get_moderator_or_admin_user
+from src.security.dependencies import get_moderator_or_admin_user
 from src.services import (
     apply_movie_filters,
     apply_movie_sorting,
@@ -33,8 +34,24 @@ from src.services import (
 
 router = APIRouter()
 
+AUTH_RESPONSES = {
+    401: {"description": "A valid access token is required."},
+    403: {"description": "Moderator or administrator privileges are required."},
+}
 
-@router.get("/movies/", response_model=MovieListResponseSchema)
+
+@router.get(
+    "/movies/",
+    response_model=MovieListResponseSchema,
+    summary="List Movies",
+    description=(
+        "Return a paginated movie catalog. Supports search by title, description, "
+        "actor, or director; filtering by year, IMDb rating, price, genre, and "
+        "certification; and sorting by name, year, price, IMDb rating, popularity, "
+        "or newest catalog entry."
+    ),
+    response_description="Paginated movie catalog.",
+)
 async def get_movie_list(
     request: Request,
     filters: Annotated[MovieFilterParams, Query()],
@@ -94,7 +111,24 @@ async def get_movie_list(
 
 
 @router.post(
-    "/movies/", response_model=MovieDetailSchema, status_code=status.HTTP_201_CREATED
+    "/movies/",
+    response_model=MovieDetailSchema,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create Movie",
+    description=(
+        "Create a movie and reuse or create its certification, actors, genres, "
+        "and directors. Moderator or administrator access is required."
+    ),
+    response_description="Created movie with all catalog relationships.",
+    responses={
+        **AUTH_RESPONSES,
+        400: {"description": "The supplied movie data violates a database constraint."},
+        409: {
+            "description": (
+                "A movie with the same name, release year, and runtime already exists."
+            )
+        },
+    },
 )
 async def create_movie(
     movie_data: MovieCreateSchema,
@@ -156,9 +190,16 @@ async def create_movie(
         )
 
 
-@router.get("/movies/{movie_uuid}/", response_model=MovieDetailSchema)
+@router.get(
+    "/movies/{movie_uuid}/",
+    response_model=MovieDetailSchema,
+    summary="Get Movie Details",
+    description="Return a movie and its certification, actors, genres, and directors.",
+    response_description="Detailed movie information.",
+    responses={404: {"description": "Movie was not found."}},
+)
 async def get_movie_by_uuid(
-    movie_uuid: str, db: AsyncSession = Depends(get_db)
+    movie_uuid: UUID, db: AsyncSession = Depends(get_db)
 ) -> MovieDetailSchema:
     stmt = (
         select(MovieModel)
@@ -182,9 +223,23 @@ async def get_movie_by_uuid(
     return MovieDetailSchema.model_validate(movie)
 
 
-@router.patch("/movies/{movie_uuid}/", response_model=MovieDetailSchema)
+@router.patch(
+    "/movies/{movie_uuid}/",
+    response_model=MovieDetailSchema,
+    summary="Update Movie",
+    description=(
+        "Partially update movie fields and optionally replace its certification, "
+        "actors, genres, or directors. Moderator or administrator access is required."
+    ),
+    response_description="Updated movie with all catalog relationships.",
+    responses={
+        **AUTH_RESPONSES,
+        400: {"description": "The supplied movie data violates a database constraint."},
+        404: {"description": "Movie was not found."},
+    },
+)
 async def update_movie(
-    movie_uuid: str,
+    movie_uuid: UUID,
     movie_data: MovieUpdateSchema,
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_moderator_or_admin_user),
@@ -262,12 +317,21 @@ async def update_movie(
     return MovieDetailSchema.model_validate(movie)
 
 
-@router.delete("/movies/{movie_uuid}/", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/movies/{movie_uuid}/",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete Movie",
+    description="Delete a movie. Moderator or administrator access is required.",
+    responses={
+        **AUTH_RESPONSES,
+        404: {"description": "Movie was not found."},
+    },
+)
 async def delete_movie(
-    movie_uuid: str,
+    movie_uuid: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_moderator_or_admin_user),
-):
+) -> Response:
     movie = await db.scalar(select(MovieModel).where(MovieModel.uuid == movie_uuid))
 
     if not movie:
@@ -279,4 +343,4 @@ async def delete_movie(
     await db.delete(movie)
     await db.commit()
 
-    return {"detail": "Movie deleted successfully."}
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
