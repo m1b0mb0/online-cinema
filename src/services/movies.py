@@ -1,5 +1,8 @@
-from sqlalchemy import or_
+from typing import TypeVar
+
+from sqlalchemy import or_, select
 from sqlalchemy.sql import Select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import MovieModel, GenreModel, CertificationModel
 from src.schemas import MovieFilterParams, MovieSortField, SortOrder
@@ -12,6 +15,8 @@ SORT_COLUMNS = {
     MovieSortField.IMDB: MovieModel.imdb,
     MovieSortField.POPULARITY: MovieModel.votes,
 }
+
+ModelType = TypeVar("ModelType")
 
 
 def apply_movie_sorting(statement: Select, filters: MovieFilterParams) -> Select:
@@ -75,3 +80,27 @@ def apply_movie_filters(statement: Select, filters: MovieFilterParams) -> Select
         )
 
     return statement
+
+
+async def get_or_create_models_by_name(
+    db: AsyncSession, model: type[ModelType], names: list[str]
+) -> list[ModelType]:
+    normalized_names = list(dict.fromkeys(names))
+
+    existing_items = (
+        await db.scalars(select(model).where(model.name.in_(normalized_names)))
+    ).all()
+
+    items_by_name = {item.name: item for item in existing_items}
+
+    missing_items = [
+        model(name=name) for name in normalized_names if name not in items_by_name
+    ]
+
+    if missing_items:
+        db.add_all(missing_items)
+        await db.flush()
+
+        items_by_name.update({item.name: item for item in missing_items})
+
+    return [items_by_name[name] for name in normalized_names]

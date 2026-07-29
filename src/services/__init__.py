@@ -3,4 +3,8 @@ from src.services.accounts import (
     build_account_link,
     activate_user_account,
 )
-from src.services.movies import apply_movie_filters, apply_movie_sorting
+from src.services.movies import (
+    apply_movie_filters,
+    apply_movie_sorting,
+    get_or_create_models_by_name,
+)

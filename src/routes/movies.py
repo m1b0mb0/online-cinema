@@ -2,7 +2,7 @@ import math
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
-from sqlalchemy import desc, func, select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -25,7 +25,11 @@ from src.schemas.movies import (
 )
 from src.database import get_db
 from src.security.dependencies import get_admin_user, get_moderator_or_admin_user
-from src.services import apply_movie_filters, apply_movie_sorting
+from src.services import (
+    apply_movie_filters,
+    apply_movie_sorting,
+    get_or_create_models_by_name,
+)
 
 router = APIRouter()
 
@@ -115,50 +119,14 @@ async def create_movie(
         )
 
     try:
-        certification = await db.scalar(
-            select(CertificationModel).where(
-                CertificationModel.name == movie_data.certification
-            )
+        certifications = await get_or_create_models_by_name(
+            db, CertificationModel, [movie_data.certification]
         )
-
-        if not certification:
-            certification = CertificationModel(name=movie_data.certification)
-            db.add(certification)
-            await db.flush()
-
-        stars = []
-        for star_name in movie_data.stars:
-            star = await db.scalar(select(StarModel).where(StarModel.name == star_name))
-
-            if not star:
-                star = StarModel(name=star_name)
-                db.add(star)
-                await db.flush()
-            stars.append(star)
-
-        genres = []
-        for genre_name in movie_data.genres:
-            genre = await db.scalar(
-                select(GenreModel).where(GenreModel.name == genre_name)
-            )
-
-            if not genre:
-                genre = GenreModel(name=genre_name)
-                db.add(genre)
-                await db.flush()
-            genres.append(genre)
-
-        directors = []
-        for director_name in movie_data.directors:
-            director = await db.scalar(
-                select(DirectorModel).where(DirectorModel.name == director_name)
-            )
-
-            if not director:
-                director = DirectorModel(name=director_name)
-                db.add(director)
-                await db.flush()
-            directors.append(director)
+        stars = await get_or_create_models_by_name(db, StarModel, movie_data.stars)
+        genres = await get_or_create_models_by_name(db, GenreModel, movie_data.genres)
+        directors = await get_or_create_models_by_name(
+            db, DirectorModel, movie_data.directors
+        )
 
         movie = MovieModel(
             name=movie_data.name,
@@ -170,14 +138,14 @@ async def create_movie(
             gross=movie_data.gross,
             description=movie_data.description,
             price=movie_data.price,
-            certification=certification,
+            certification=certifications[0],
             stars=stars,
             genres=genres,
             directors=directors,
         )
         db.add(movie)
         await db.commit()
-        await db.refresh(movie, ["stars", "genres", "directors"])
+        await db.refresh(movie, ["certification", "stars", "genres", "directors"])
 
         return MovieDetailSchema.model_validate(movie)
 
