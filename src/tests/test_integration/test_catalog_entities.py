@@ -2,7 +2,6 @@ from urllib.parse import parse_qs, urlparse
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
 
 from src.database import (
     CertificationModel,
@@ -10,34 +9,10 @@ from src.database import (
     MovieModel,
     StarModel,
     UserGroupEnum,
-    UserGroupModel,
-    UserModel,
 )
+from src.tests.helpers import create_auth_headers
 
 pytestmark = pytest.mark.integration
-
-
-async def create_auth_headers(
-    db_session,
-    jwt_manager,
-    group_name: UserGroupEnum,
-    email: str,
-) -> dict[str, str]:
-    group = await db_session.scalar(
-        select(UserGroupModel).where(UserGroupModel.name == group_name)
-    )
-    user = UserModel(
-        email=email,
-        _hashed_password="not-used-in-permission-tests",
-        is_active=True,
-        group_id=group.id,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-
-    access_token = jwt_manager.create_access_token({"user_id": user.id})
-    return {"Authorization": f"Bearer {access_token}"}
 
 
 @pytest.mark.asyncio
