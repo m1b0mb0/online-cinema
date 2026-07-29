@@ -123,8 +123,14 @@ class ActorRequestSchema(NamedCatalogEntityRequestSchema):
     pass
 
 
+class GenreMovieCountSchema(BaseModel):
+    id: int
+    name: str
+    movie_count: int
+
+
 class GenreListResponseSchema(BaseModel):
-    genres: list[GenreSchema]
+    genres: list[GenreMovieCountSchema]
     prev_page: str | None
     next_page: str | None
     page: int

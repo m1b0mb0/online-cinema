@@ -29,6 +29,7 @@ from src.schemas.movies import (
     NamedCatalogEntityRequestSchema,
     GenreRequestSchema,
     ActorRequestSchema,
+    GenreMovieCountSchema,
     GenreListResponseSchema,
     ActorListResponseSchema,
 )

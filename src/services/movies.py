@@ -4,7 +4,12 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.sql import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database import MovieModel, GenreModel, CertificationModel
+from src.database import (
+    MovieModel,
+    GenreModel,
+    CertificationModel,
+    MovieGenresModel,
+)
 from src.schemas import MovieFilterParams, MovieSortField, SortOrder
 
 SORT_COLUMNS = {
@@ -130,6 +135,46 @@ async def get_named_models_page(
     items = list((await db.scalars(statement)).all())
     total_items = await db.scalar(count_statement) or 0
     return items, total_items
+
+
+async def get_genres_with_movie_counts(
+    db: AsyncSession,
+    page: int,
+    per_page: int,
+    search: str | None = None,
+) -> tuple[list[dict[str, int | str]], int]:
+    search_condition = None
+    if search:
+        search_condition = GenreModel.name.ilike(f"%{search}%")
+
+    count_statement = select(func.count(GenreModel.id))
+    if search_condition is not None:
+        count_statement = count_statement.where(search_condition)
+
+    movie_count = func.count(MovieGenresModel.c.movie_id).label("movie_count")
+    statement = (
+        select(
+            GenreModel.id,
+            GenreModel.name,
+            movie_count,
+        )
+        .outerjoin(
+            MovieGenresModel,
+            GenreModel.id == MovieGenresModel.c.genre_id,
+        )
+        .group_by(GenreModel.id, GenreModel.name)
+        .order_by(func.lower(GenreModel.name), GenreModel.id)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+
+    if search_condition is not None:
+        statement = statement.where(search_condition)
+
+    rows = (await db.execute(statement)).mappings().all()
+    genres = [dict(row) for row in rows]
+    total_items = await db.scalar(count_statement) or 0
+    return genres, total_items
 
 
 async def get_named_model_by_id(

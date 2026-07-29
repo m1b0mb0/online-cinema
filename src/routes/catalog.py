@@ -20,6 +20,7 @@ from src.security.dependencies import get_moderator_or_admin_user
 from src.services import (
     get_named_model_by_id,
     get_named_model_by_name,
+    get_genres_with_movie_counts,
     get_named_models_page,
 )
 
@@ -144,9 +145,8 @@ async def get_genre_list(
     params: Annotated[CatalogEntityListParams, Query()],
     db: AsyncSession = Depends(get_db),
 ) -> GenreListResponseSchema:
-    genres, total_items = await get_named_models_page(
+    genres, total_items = await get_genres_with_movie_counts(
         db,
-        GenreModel,
         params.page,
         params.per_page,
         params.search,

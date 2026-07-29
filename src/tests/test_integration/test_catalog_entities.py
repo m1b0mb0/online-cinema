@@ -1,10 +1,13 @@
 from urllib.parse import parse_qs, urlparse
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
 
 from src.database import (
+    CertificationModel,
     GenreModel,
+    MovieModel,
     StarModel,
     UserGroupEnum,
     UserGroupModel,
@@ -60,7 +63,9 @@ async def test_catalog_entity_lists_and_details_are_public(client, db_session):
 
     assert genres_response.status_code == 200
     genres_data = genres_response.json()
-    assert genres_data["genres"] == [{"id": action.id, "name": "Action"}]
+    assert genres_data["genres"] == [
+        {"id": action.id, "name": "Action", "movie_count": 0}
+    ]
     assert genres_data["prev_page"] is None
     assert parse_qs(urlparse(genres_data["next_page"]).query) == {
         "page": ["2"],
@@ -80,7 +85,9 @@ async def test_catalog_entity_lists_and_details_are_public(client, db_session):
     second_page_response = await client.get(genres_data["next_page"])
     second_page_data = second_page_response.json()
     assert second_page_response.status_code == 200
-    assert second_page_data["genres"] == [{"id": drama.id, "name": "Drama"}]
+    assert second_page_data["genres"] == [
+        {"id": drama.id, "name": "Drama", "movie_count": 0}
+    ]
     assert second_page_data["next_page"] is None
     assert parse_qs(urlparse(second_page_data["prev_page"]).query) == {
         "page": ["1"],
@@ -105,6 +112,60 @@ async def test_catalog_entity_lists_and_details_are_public(client, db_session):
 
     assert detail_response.status_code == 200
     assert detail_response.json() == {"id": actor_id, "name": "Tom Hanks"}
+
+
+@pytest.mark.asyncio
+async def test_genre_list_includes_movie_counts(client, db_session):
+    certification = CertificationModel(name="PG-13")
+    drama = GenreModel(name="Drama")
+    action = GenreModel(name="Action")
+    documentary = GenreModel(name="Documentary")
+    first_movie = MovieModel(
+        name="First Movie",
+        year=2020,
+        time=120,
+        imdb=8.0,
+        votes=1000,
+        description="First movie description.",
+        price=Decimal("9.99"),
+        certification=certification,
+        genres=[drama, action],
+    )
+    second_movie = MovieModel(
+        name="Second Movie",
+        year=2021,
+        time=100,
+        imdb=7.5,
+        votes=500,
+        description="Second movie description.",
+        price=Decimal("7.99"),
+        certification=certification,
+        genres=[drama],
+    )
+    db_session.add_all(
+        [
+            first_movie,
+            second_movie,
+            documentary,
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.get(
+        "/theater/genres/",
+        params={"per_page": 100},
+    )
+
+    assert response.status_code == 200
+    counts_by_genre = {
+        genre["name"]: genre["movie_count"]
+        for genre in response.json()["genres"]
+    }
+    assert counts_by_genre == {
+        "Action": 1,
+        "Documentary": 0,
+        "Drama": 2,
+    }
 
 
 @pytest.mark.parametrize(
