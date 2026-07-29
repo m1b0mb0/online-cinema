@@ -266,7 +266,7 @@ async def update_movie(
 async def delete_movie(
     movie_uuid: str,
     db: AsyncSession = Depends(get_db),
-    current_user: UserModel = Depends(get_admin_user),
+    current_user: UserModel = Depends(get_moderator_or_admin_user),
 ):
     movie = await db.scalar(select(MovieModel).where(MovieModel.uuid == movie_uuid))
 
