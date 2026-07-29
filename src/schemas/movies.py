@@ -20,6 +20,14 @@ class SortOrder(StrEnum):
     DESC = "desc"
 
 
+class CatalogEntityListParams(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    page: int = Field(default=1, ge=1)
+    per_page: int = Field(default=20, ge=1, le=100)
+    search: str | None = Field(default=None, min_length=1, max_length=100)
+
+
 class MovieFilterParams(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -96,6 +104,43 @@ class DirectorSchema(BaseModel):
     name: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class NamedCatalogEntityRequestSchema(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+
+class GenreRequestSchema(NamedCatalogEntityRequestSchema):
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        return value.title()
+
+
+class ActorRequestSchema(NamedCatalogEntityRequestSchema):
+    pass
+
+
+class GenreListResponseSchema(BaseModel):
+    genres: list[GenreSchema]
+    prev_page: str | None
+    next_page: str | None
+    page: int
+    per_page: int
+    total_pages: int
+    total_items: int
+
+
+class ActorListResponseSchema(BaseModel):
+    actors: list[StarSchema]
+    prev_page: str | None
+    next_page: str | None
+    page: int
+    per_page: int
+    total_pages: int
+    total_items: int
 
 
 class MovieBaseSchema(BaseModel):

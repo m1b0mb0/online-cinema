@@ -25,4 +25,10 @@ from src.schemas.movies import (
     MovieFilterParams,
     MovieSortField,
     SortOrder,
+    CatalogEntityListParams,
+    NamedCatalogEntityRequestSchema,
+    GenreRequestSchema,
+    ActorRequestSchema,
+    GenreListResponseSchema,
+    ActorListResponseSchema,
 )
