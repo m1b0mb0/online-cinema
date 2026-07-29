@@ -173,5 +173,17 @@ class MovieUpdateSchema(BaseModel):
     gross: float | None = Field(default=None, ge=0)
     description: str | None = None
     price: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
+    certification: str | None = Field(default=None, min_length=1, max_length=100)
+    stars: list[StarName] | None = None
+    genres: list[GenreName] | None = None
+    directors: list[DirectorName] | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("stars", "genres", "directors", mode="before")
+    @classmethod
+    def normalize_list_fields(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return value
+
+        return [item.title() for item in value]

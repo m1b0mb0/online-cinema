@@ -182,14 +182,25 @@ async def get_movie_by_uuid(
     return MovieDetailSchema.model_validate(movie)
 
 
-@router.patch("/movies/{movie_uuid}/")
+@router.patch("/movies/{movie_uuid}/", response_model=MovieDetailSchema)
 async def update_movie(
     movie_uuid: str,
     movie_data: MovieUpdateSchema,
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_moderator_or_admin_user),
-):
-    movie = await db.scalar(select(MovieModel).where(MovieModel.uuid == movie_uuid))
+) -> MovieDetailSchema:
+    stmt = (
+        select(MovieModel)
+        .options(
+            joinedload(MovieModel.certification),
+            selectinload(MovieModel.stars),
+            selectinload(MovieModel.genres),
+            selectinload(MovieModel.directors),
+        )
+        .where(MovieModel.uuid == movie_uuid)
+    )
+
+    movie = await db.scalar(stmt)
 
     if not movie:
         raise HTTPException(
@@ -197,19 +208,58 @@ async def update_movie(
             detail="Movie with the given UUID was not found.",
         )
 
-    for field, value in movie_data.model_dump(exclude_unset=True).items():
+    update_data = movie_data.model_dump(exclude_unset=True)
+
+    certification_name = update_data.pop("certification", None)
+    star_names = update_data.pop("stars", None)
+    genre_names = update_data.pop("genres", None)
+    director_names = update_data.pop("directors", None)
+
+    for field, value in update_data.items():
         setattr(movie, field, value)
+
+    if certification_name is not None:
+        certifications = await get_or_create_models_by_name(
+            db,
+            CertificationModel,
+            [certification_name],
+        )
+        movie.certification = certifications[0]
+
+    if star_names is not None:
+        movie.stars = await get_or_create_models_by_name(
+            db,
+            StarModel,
+            star_names,
+        )
+
+    if genre_names is not None:
+        movie.genres = await get_or_create_models_by_name(
+            db,
+            GenreModel,
+            genre_names,
+        )
+
+    if director_names is not None:
+        movie.directors = await get_or_create_models_by_name(
+            db,
+            DirectorModel,
+            director_names,
+        )
 
     try:
         await db.commit()
-        await db.refresh(movie)
+        await db.refresh(
+            movie,
+            ["certification", "stars", "genres", "directors"],
+        )
     except IntegrityError:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data."
         )
 
-    return {"detail": "Movie updated successfully."}
+    return MovieDetailSchema.model_validate(movie)
 
 
 @router.delete("/movies/{movie_uuid}/", status_code=status.HTTP_204_NO_CONTENT)
