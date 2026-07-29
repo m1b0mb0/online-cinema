@@ -603,7 +603,7 @@ async def test_non_admin_cannot_change_user_group(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "Administrator privileges are required."
+    assert response.json()["detail"] == "You do not have permission to perform this action."
 
 
 @pytest.mark.integration
