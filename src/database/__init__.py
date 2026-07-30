@@ -23,6 +23,8 @@ from src.database.models.movies import (
     MovieDirectorsModel,
 )
 
+from src.database.models.favorites import FavoriteModel
+
 environment = os.getenv("ENVIRONMENT", "developing")
 
 if environment == "testing":

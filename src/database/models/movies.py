@@ -1,5 +1,7 @@
 from uuid import UUID, uuid4
 from decimal import Decimal
+from typing import TYPE_CHECKING
+
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import (
     CheckConstraint,
@@ -15,7 +17,10 @@ from sqlalchemy import (
     Uuid,
 )
 
-from src.database import Base
+from src.database.models.base import Base
+
+if TYPE_CHECKING:
+    from src.database.models.favorites import FavoriteModel
 
 MovieStarsModel = Table(
     "movie_stars",
@@ -136,6 +141,11 @@ class MovieModel(Base):
     )
     directors: Mapped[list["DirectorModel"]] = relationship(
         secondary=MovieDirectorsModel, back_populates="movies"
+    )
+
+    favorite_entries: Mapped[list["FavoriteModel"]] = relationship(
+        back_populates="movie",
+        cascade="all, delete-orphan",
     )
 
     __table_args__ = (
