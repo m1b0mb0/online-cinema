@@ -19,6 +19,7 @@ from src.schemas.movies import (
     DirectorSchema,
     MovieListItemSchema,
     MovieListResponseSchema,
+    FavoriteResponseSchema,
     MovieDetailSchema,
     MovieCreateSchema,
     MovieUpdateSchema,

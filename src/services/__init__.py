@@ -11,4 +11,5 @@ from src.services.movies import (
     get_genres_with_movie_counts,
     get_named_model_by_id,
     get_named_model_by_name,
+    get_favorite_movies_page,
 )

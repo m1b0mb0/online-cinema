@@ -1,4 +1,5 @@
 from enum import StrEnum
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 from decimal import Decimal
@@ -275,6 +276,13 @@ class MovieListResponseSchema(BaseModel):
     next_page: str | None
     total_pages: int
     total_items: int
+
+
+class FavoriteResponseSchema(BaseModel):
+    added_at: datetime
+    movie: MovieListItemSchema
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 StarName = Annotated[str, Field(max_length=100)]

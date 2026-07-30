@@ -9,6 +9,7 @@ from src.database import (
     GenreModel,
     CertificationModel,
     DirectorModel,
+    FavoriteModel,
     MovieGenresModel,
     StarModel,
 )
@@ -197,3 +198,29 @@ async def get_named_model_by_name(
     return await db.scalar(
         select(model).where(func.lower(model.name) == name.lower())
     )
+
+
+async def get_favorite_movies_page(
+    db: AsyncSession,
+    user_id: int,
+    filters: MovieFilterParams,
+) -> tuple[list[MovieModel], int]:
+    statement = (
+        select(MovieModel)
+        .join(FavoriteModel, FavoriteModel.movie_id == MovieModel.id)
+        .where(FavoriteModel.user_id == user_id)
+    )
+    statement = apply_movie_filters(statement, filters)
+
+    count_statement = select(func.count()).select_from(
+        statement.order_by(None).subquery()
+    )
+    total_items = await db.scalar(count_statement) or 0
+
+    statement = apply_movie_sorting(statement, filters)
+    statement = statement.offset(
+        (filters.page - 1) * filters.per_page
+    ).limit(filters.per_page)
+    movies = list((await db.scalars(statement)).all())
+
+    return movies, total_items
