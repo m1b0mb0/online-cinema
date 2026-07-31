@@ -39,3 +39,12 @@ from src.schemas.reactions import (
     MovieReactionSummarySchema,
     ReactionRequestSchema,
 )
+from src.schemas.comments import (
+    CommentAuthorSchema,
+    CommentCreateSchema,
+    CommentListParams,
+    CommentListResponseSchema,
+    CommentSchema,
+    CommentSortOrder,
+    CommentUpdateSchema,
+)
