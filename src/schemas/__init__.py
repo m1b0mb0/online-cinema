@@ -34,3 +34,8 @@ from src.schemas.movies import (
     GenreListResponseSchema,
     ActorListResponseSchema,
 )
+from src.schemas.reactions import (
+    CurrentMovieReactionSchema,
+    MovieReactionSummarySchema,
+    ReactionRequestSchema,
+)

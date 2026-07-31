@@ -20,8 +20,8 @@ from src.services import get_favorite_movies_page
 router = APIRouter()
 
 AUTH_RESPONSES = {
-    401: {"description": "A valid access token is required."},
-    403: {"description": "The user account must be active."},
+    401: {"description": "Access token is missing or invalid."},
+    403: {"description": "User account is not activated."},
 }
 
 
@@ -72,10 +72,7 @@ async def get_favorite_movies(
     )
 
     return MovieListResponseSchema(
-        movies=[
-            MovieListItemSchema.model_validate(movie)
-            for movie in movies
-        ],
+        movies=[MovieListItemSchema.model_validate(movie) for movie in movies],
         prev_page=prev_page,
         next_page=next_page,
         total_pages=total_pages,
@@ -101,9 +98,7 @@ async def add_movie_to_favorites(
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> FavoriteResponseSchema:
-    movie = await db.scalar(
-        select(MovieModel).where(MovieModel.uuid == movie_uuid)
-    )
+    movie = await db.scalar(select(MovieModel).where(MovieModel.uuid == movie_uuid))
     if not movie:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
