@@ -2,13 +2,24 @@ import math
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, joinedload
 
+from src.config import BaseAppSettings, get_email_notificator, get_settings
 from src.database import CommentModel, MovieModel, UserModel, get_db
+from src.notifications import EmailSenderInterface
 from src.schemas import (
     CommentAuthorSchema,
     CommentCreateSchema,
@@ -340,8 +351,11 @@ async def get_comment_replies(
 async def reply_to_comment(
     comment_uuid: UUID,
     data: CommentCreateSchema,
+    background_tasks: BackgroundTasks,
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
+    email_sender: EmailSenderInterface = Depends(get_email_notificator),
 ) -> CommentSchema:
     parent, _ = await _get_comment_or_404(db, comment_uuid)
     reply = CommentModel(
@@ -359,6 +373,16 @@ async def reply_to_comment(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while saving the comment.",
         ) from error
+
+    if parent.user_id != current_user.id:
+        comment_link = (
+            f"{settings.APP_BASE_URL}/theater/comments/{reply.uuid}/"
+        )
+        background_tasks.add_task(
+            email_sender.send_comment_reply_email,
+            str(parent.user.email),
+            comment_link,
+        )
 
     saved_reply, replies_count = await _get_comment_or_404(db, reply.uuid)
     return _serialize_comment(saved_reply, replies_count)

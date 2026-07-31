@@ -20,3 +20,15 @@ class EmailSenderInterface(ABC):
         self, email: str, login_link: str
     ) -> None:
         pass
+
+    @abstractmethod
+    async def send_comment_reply_email(
+        self, email: str, comment_link: str
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def send_comment_like_email(
+        self, email: str, comment_link: str
+    ) -> None:
+        pass

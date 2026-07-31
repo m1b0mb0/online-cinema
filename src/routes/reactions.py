@@ -1,12 +1,20 @@
 from typing import TypeVar
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Response,
+    status,
+)
 from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
+from src.config import BaseAppSettings, get_email_notificator, get_settings
 from src.database import (
     CommentModel,
     CommentReactionModel,
@@ -16,6 +24,7 @@ from src.database import (
     UserModel,
     get_db,
 )
+from src.notifications import EmailSenderInterface
 from src.schemas import (
     CommentReactionSummarySchema,
     CurrentCommentReactionSchema,
@@ -94,9 +103,12 @@ async def _set_reaction(
     db: AsyncSession,
     key: tuple[int, int],
     new_reaction: ReactionModel,
-) -> ReactionModel:
+) -> tuple[ReactionModel, ReactionTypeEnum | None]:
     reaction_model = type(new_reaction)
     reaction = await db.get(reaction_model, key)
+    previous_reaction_type = (
+        reaction.reaction_type if reaction is not None else None
+    )
     if reaction is None:
         reaction = new_reaction
         db.add(reaction)
@@ -110,6 +122,7 @@ async def _set_reaction(
         reaction = await db.get(reaction_model, key)
         if reaction is None:
             raise
+        previous_reaction_type = reaction.reaction_type
         if reaction.reaction_type != new_reaction.reaction_type:
             reaction.reaction_type = new_reaction.reaction_type
         try:
@@ -121,7 +134,7 @@ async def _set_reaction(
         await db.rollback()
         raise
 
-    return reaction
+    return reaction, previous_reaction_type
 
 
 async def _remove_reaction(
@@ -246,7 +259,7 @@ async def set_current_user_movie_reaction(
         movie_uuid,
         "Movie",
     )
-    reaction = await _set_reaction(
+    reaction, _ = await _set_reaction(
         db,
         (current_user.id, movie.id),
         MovieReactionModel(
@@ -399,8 +412,11 @@ async def get_current_user_comment_reaction(
 async def set_current_user_comment_reaction(
     comment_uuid: UUID,
     data: ReactionRequestSchema,
+    background_tasks: BackgroundTasks,
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
+    email_sender: EmailSenderInterface = Depends(get_email_notificator),
 ) -> CurrentCommentReactionSchema:
     comment = await _get_reaction_target_or_404(
         db,
@@ -408,7 +424,7 @@ async def set_current_user_comment_reaction(
         comment_uuid,
         "Comment",
     )
-    reaction = await _set_reaction(
+    reaction, previous_reaction_type = await _set_reaction(
         db,
         (current_user.id, comment.id),
         CommentReactionModel(
@@ -417,6 +433,25 @@ async def set_current_user_comment_reaction(
             reaction_type=data.reaction_type,
         ),
     )
+
+    if (
+        current_user.id != comment.user_id
+        and data.reaction_type == ReactionTypeEnum.LIKE
+        and previous_reaction_type != ReactionTypeEnum.LIKE
+    ):
+        comment_author_email = await db.scalar(
+            select(UserModel.email).where(UserModel.id == comment.user_id)
+        )
+        if comment_author_email is not None:
+            comment_link = (
+                f"{settings.APP_BASE_URL}/theater/comments/{comment.uuid}/"
+            )
+            background_tasks.add_task(
+                email_sender.send_comment_like_email,
+                str(comment_author_email),
+                comment_link,
+            )
+
     likes_count, dislikes_count = await _get_reaction_counts(
         db,
         CommentReactionModel,
