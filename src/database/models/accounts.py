@@ -21,6 +21,7 @@ from src.database.models.base import Base
 
 if TYPE_CHECKING:
     from src.database.models.favorites import FavoriteModel
+    from src.database.models.reactions import MovieReactionModel
 
 
 class UserGroupEnum(str, enum.Enum):
@@ -78,6 +79,10 @@ class UserModel(Base):
     )
 
     favorites: Mapped[list["FavoriteModel"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    movie_reactions: Mapped[list["MovieReactionModel"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
     )

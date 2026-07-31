@@ -21,6 +21,7 @@ from src.database.models.base import Base
 
 if TYPE_CHECKING:
     from src.database.models.favorites import FavoriteModel
+    from src.database.models.reactions import MovieReactionModel
 
 MovieStarsModel = Table(
     "movie_stars",
@@ -144,6 +145,10 @@ class MovieModel(Base):
     )
 
     favorite_entries: Mapped[list["FavoriteModel"]] = relationship(
+        back_populates="movie",
+        cascade="all, delete-orphan",
+    )
+    reactions: Mapped[list["MovieReactionModel"]] = relationship(
         back_populates="movie",
         cascade="all, delete-orphan",
     )

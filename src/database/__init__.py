@@ -24,6 +24,11 @@ from src.database.models.movies import (
 )
 
 from src.database.models.favorites import FavoriteModel
+from src.database.models.reactions import (
+    MovieReactionModel,
+    ReactionMixin,
+    ReactionTypeEnum,
+)
 
 environment = os.getenv("ENVIRONMENT", "developing")
 
