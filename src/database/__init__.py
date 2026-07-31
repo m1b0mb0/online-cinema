@@ -24,7 +24,9 @@ from src.database.models.movies import (
 )
 
 from src.database.models.favorites import FavoriteModel
+from src.database.models.comments import CommentModel
 from src.database.models.reactions import (
+    CommentReactionModel,
     MovieReactionModel,
     ReactionMixin,
     ReactionTypeEnum,

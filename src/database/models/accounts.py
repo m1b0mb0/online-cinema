@@ -20,8 +20,12 @@ from src.security.utils import generate_secure_token
 from src.database.models.base import Base
 
 if TYPE_CHECKING:
+    from src.database.models.comments import CommentModel
     from src.database.models.favorites import FavoriteModel
-    from src.database.models.reactions import MovieReactionModel
+    from src.database.models.reactions import (
+        CommentReactionModel,
+        MovieReactionModel,
+    )
 
 
 class UserGroupEnum(str, enum.Enum):
@@ -83,6 +87,14 @@ class UserModel(Base):
         cascade="all, delete-orphan",
     )
     movie_reactions: Mapped[list["MovieReactionModel"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    comments: Mapped[list["CommentModel"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    comment_reactions: Mapped[list["CommentReactionModel"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
     )

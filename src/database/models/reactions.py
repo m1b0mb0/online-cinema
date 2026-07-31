@@ -9,6 +9,7 @@ from src.database.models.base import Base
 
 if TYPE_CHECKING:
     from src.database.models.accounts import UserModel
+    from src.database.models.comments import CommentModel
     from src.database.models.movies import MovieModel
 
 
@@ -59,6 +60,28 @@ class MovieReactionModel(ReactionMixin, Base):
         Index(
             "ix_movie_reactions_movie_type",
             "movie_id",
+            "reaction_type",
+        ),
+    )
+
+
+class CommentReactionModel(ReactionMixin, Base):
+    __tablename__ = "comment_reactions"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    comment_id: Mapped[int] = mapped_column(
+        ForeignKey("comments.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    user: Mapped["UserModel"] = relationship(back_populates="comment_reactions")
+    comment: Mapped["CommentModel"] = relationship(back_populates="reactions")
+
+    __table_args__ = (
+        Index(
+            "ix_comment_reactions_comment_type",
+            "comment_id",
             "reaction_type",
         ),
     )
