@@ -20,6 +20,7 @@ from src.security.utils import generate_secure_token
 from src.database.models.base import Base
 
 if TYPE_CHECKING:
+    from src.database.models.cart import CartModel
     from src.database.models.comments import CommentModel
     from src.database.models.favorites import FavoriteModel
     from src.database.models.reactions import (
@@ -101,6 +102,10 @@ class UserModel(Base):
     )
     ratings: Mapped[list["MovieRatingModel"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
+    )
+    cart: Mapped[Optional["CartModel"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
     @classmethod
