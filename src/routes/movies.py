@@ -29,6 +29,7 @@ from src.security.dependencies import get_moderator_or_admin_user
 from src.services import (
     apply_movie_filters,
     apply_movie_sorting,
+    get_movie_by_uuid_or_404,
     get_or_create_models_by_name,
 )
 
@@ -201,24 +202,16 @@ async def create_movie(
 async def get_movie_by_uuid(
     movie_uuid: UUID, db: AsyncSession = Depends(get_db)
 ) -> MovieDetailSchema:
-    stmt = (
-        select(MovieModel)
-        .options(
+    movie = await get_movie_by_uuid_or_404(
+        db,
+        movie_uuid,
+        loader_options=(
             joinedload(MovieModel.certification),
             selectinload(MovieModel.stars),
             selectinload(MovieModel.genres),
             selectinload(MovieModel.directors),
-        )
-        .where(MovieModel.uuid == movie_uuid)
+        ),
     )
-
-    movie = await db.scalar(stmt)
-
-    if not movie:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
 
     return MovieDetailSchema.model_validate(movie)
 
@@ -244,24 +237,16 @@ async def update_movie(
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_moderator_or_admin_user),
 ) -> MovieDetailSchema:
-    stmt = (
-        select(MovieModel)
-        .options(
+    movie = await get_movie_by_uuid_or_404(
+        db,
+        movie_uuid,
+        loader_options=(
             joinedload(MovieModel.certification),
             selectinload(MovieModel.stars),
             selectinload(MovieModel.genres),
             selectinload(MovieModel.directors),
-        )
-        .where(MovieModel.uuid == movie_uuid)
+        ),
     )
-
-    movie = await db.scalar(stmt)
-
-    if not movie:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
 
     update_data = movie_data.model_dump(exclude_unset=True)
 
@@ -332,13 +317,7 @@ async def delete_movie(
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_moderator_or_admin_user),
 ) -> Response:
-    movie = await db.scalar(select(MovieModel).where(MovieModel.uuid == movie_uuid))
-
-    if not movie:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     await db.delete(movie)
     await db.commit()

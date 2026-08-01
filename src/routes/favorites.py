@@ -15,7 +15,7 @@ from src.schemas import (
     MovieListResponseSchema,
 )
 from src.security.dependencies import get_current_active_user
-from src.services import get_favorite_movies_page
+from src.services import get_favorite_movies_page, get_movie_by_uuid_or_404
 
 router = APIRouter()
 
@@ -98,12 +98,7 @@ async def add_movie_to_favorites(
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> FavoriteResponseSchema:
-    movie = await db.scalar(select(MovieModel).where(MovieModel.uuid == movie_uuid))
-    if not movie:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     favorite = await db.get(
         FavoriteModel,

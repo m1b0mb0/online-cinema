@@ -33,6 +33,7 @@ from src.security.dependencies import (
     ALLOWED_GROUPS,
     get_current_active_user,
 )
+from src.services import get_movie_by_uuid_or_404
 
 router = APIRouter()
 
@@ -112,14 +113,7 @@ async def get_movie_comments(
     params: Annotated[CommentListParams, Query()],
     db: AsyncSession = Depends(get_db),
 ) -> CommentListResponseSchema:
-    movie = await db.scalar(
-        select(MovieModel).where(MovieModel.uuid == movie_uuid)
-    )
-    if movie is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     condition = CommentModel.movie_id == movie.id
     total_items = await db.scalar(
@@ -208,14 +202,7 @@ async def create_movie_comment(
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> CommentSchema:
-    movie = await db.scalar(
-        select(MovieModel).where(MovieModel.uuid == movie_uuid)
-    )
-    if movie is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     comment = CommentModel(
         content=data.content,
