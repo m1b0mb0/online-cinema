@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from src.database import (
+    CartItemModel,
     UserModel,
     MovieModel,
     CertificationModel,
@@ -310,6 +311,7 @@ async def update_movie(
     responses={
         **AUTH_RESPONSES,
         404: {"description": "Movie was not found."},
+        409: {"description": "Movie is currently present in a user's cart."},
     },
 )
 async def delete_movie(
@@ -319,7 +321,27 @@ async def delete_movie(
 ) -> Response:
     movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
-    await db.delete(movie)
-    await db.commit()
+    cart_item_id = await db.scalar(
+        select(CartItemModel.id)
+        .where(CartItemModel.movie_id == movie.id)
+        .limit(1)
+    )
+    if cart_item_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Movie cannot be deleted because it is currently in a user's cart."
+            ),
+        )
+
+    try:
+        await db.delete(movie)
+        await db.commit()
+    except IntegrityError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Movie cannot be deleted because it is currently in use.",
+        ) from error
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
