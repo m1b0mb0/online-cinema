@@ -24,7 +24,7 @@ def get_jwt_auth_manager(
     )
 
 
-def get_accounts_email_notificator(
+def get_email_notificator(
     settings: BaseAppSettings = Depends(get_settings),
 ) -> EmailSenderInterface:
     return EmailSender(
@@ -38,4 +38,9 @@ def get_accounts_email_notificator(
         activation_complete_email_template_name=settings.ACTIVATION_COMPLETE_EMAIL_TEMPLATE_NAME,
         password_email_template_name=settings.PASSWORD_RESET_TEMPLATE_NAME,
         password_complete_email_template_name=settings.PASSWORD_RESET_COMPLETE_TEMPLATE_NAME,
+        comment_reply_template_name=settings.COMMENT_REPLY_TEMPLATE_NAME,
+        comment_like_template_name=settings.COMMENT_LIKE_TEMPLATE_NAME,
     )
+
+
+get_accounts_email_notificator = get_email_notificator

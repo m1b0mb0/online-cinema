@@ -1,6 +1,6 @@
 import enum
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -17,7 +17,16 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database.validators import accounts as validators
 from src.security.passwords import hash_password, verify_password
 from src.security.utils import generate_secure_token
-from src.database import Base
+from src.database.models.base import Base
+
+if TYPE_CHECKING:
+    from src.database.models.comments import CommentModel
+    from src.database.models.favorites import FavoriteModel
+    from src.database.models.reactions import (
+        CommentReactionModel,
+        MovieReactionModel,
+    )
+    from src.database.models.ratings import MovieRatingModel
 
 
 class UserGroupEnum(str, enum.Enum):
@@ -72,6 +81,26 @@ class UserModel(Base):
 
     profile: Mapped[Optional["UserProfileModel"]] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+
+    favorites: Mapped[list["FavoriteModel"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    movie_reactions: Mapped[list["MovieReactionModel"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    comments: Mapped[list["CommentModel"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    comment_reactions: Mapped[list["CommentReactionModel"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    ratings: Mapped[list["MovieRatingModel"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
     )
 
     @classmethod

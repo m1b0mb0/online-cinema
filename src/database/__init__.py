@@ -12,6 +12,27 @@ from src.database.models.accounts import (
 )
 from src.database.validators import accounts as accounts_validators
 
+from src.database.models.movies import (
+    MovieModel,
+    StarModel,
+    GenreModel,
+    DirectorModel,
+    CertificationModel,
+    MovieStarsModel,
+    MovieGenresModel,
+    MovieDirectorsModel,
+)
+
+from src.database.models.favorites import FavoriteModel
+from src.database.models.comments import CommentModel
+from src.database.models.reactions import (
+    CommentReactionModel,
+    MovieReactionModel,
+    ReactionMixin,
+    ReactionTypeEnum,
+)
+from src.database.models.ratings import MovieRatingModel
+
 environment = os.getenv("ENVIRONMENT", "developing")
 
 if environment == "testing":

@@ -12,3 +12,46 @@ from src.schemas.accounts import (
     TokenRefreshResponseSchema,
     ChangePasswordRequestSchema,
 )
+from src.schemas.movies import (
+    CertificationSchema,
+    StarSchema,
+    GenreSchema,
+    DirectorSchema,
+    MovieListItemSchema,
+    MovieListResponseSchema,
+    FavoriteResponseSchema,
+    MovieDetailSchema,
+    MovieCreateSchema,
+    MovieUpdateSchema,
+    MovieFilterParams,
+    MovieSortField,
+    SortOrder,
+    CatalogEntityListParams,
+    NamedCatalogEntityRequestSchema,
+    GenreRequestSchema,
+    ActorRequestSchema,
+    GenreMovieCountSchema,
+    GenreListResponseSchema,
+    ActorListResponseSchema,
+)
+from src.schemas.reactions import (
+    CommentReactionSummarySchema,
+    CurrentCommentReactionSchema,
+    CurrentMovieReactionSchema,
+    MovieReactionSummarySchema,
+    ReactionRequestSchema,
+)
+from src.schemas.comments import (
+    CommentAuthorSchema,
+    CommentCreateSchema,
+    CommentListParams,
+    CommentListResponseSchema,
+    CommentSchema,
+    CommentSortOrder,
+    CommentUpdateSchema,
+)
+from src.schemas.ratings import (
+    RatingRequestSchema,
+    MovieRatingsSummarySchema,
+    CurrentMovieRatingsSchema,
+)
