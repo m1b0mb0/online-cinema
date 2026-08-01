@@ -50,3 +50,8 @@ from src.schemas.comments import (
     CommentSortOrder,
     CommentUpdateSchema,
 )
+from src.schemas.ratings import (
+    RatingRequestSchema,
+    MovieRatingsSummarySchema,
+    CurrentMovieRatingsSchema,
+)
