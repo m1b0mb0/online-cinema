@@ -31,6 +31,7 @@ from src.database.models.reactions import (
     ReactionMixin,
     ReactionTypeEnum,
 )
+from src.database.models.ratings import MovieRatingModel
 
 environment = os.getenv("ENVIRONMENT", "developing")
 

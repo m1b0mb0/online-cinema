@@ -26,6 +26,7 @@ if TYPE_CHECKING:
         CommentReactionModel,
         MovieReactionModel,
     )
+    from src.database.models.ratings import MovieRatingModel
 
 
 class UserGroupEnum(str, enum.Enum):
@@ -97,6 +98,9 @@ class UserModel(Base):
     comment_reactions: Mapped[list["CommentReactionModel"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+    ratings: Mapped[list["MovieRatingModel"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
     )
 
     @classmethod

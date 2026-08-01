@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from src.database.models.comments import CommentModel
     from src.database.models.favorites import FavoriteModel
     from src.database.models.reactions import MovieReactionModel
+    from src.database.models.ratings import MovieRatingModel
 
 MovieStarsModel = Table(
     "movie_stars",
@@ -154,6 +155,10 @@ class MovieModel(Base):
         cascade="all, delete-orphan",
     )
     comments: Mapped[list["CommentModel"]] = relationship(
+        back_populates="movie",
+        cascade="all, delete-orphan",
+    )
+    ratings: Mapped[list["MovieRatingModel"]] = relationship(
         back_populates="movie",
         cascade="all, delete-orphan",
     )
