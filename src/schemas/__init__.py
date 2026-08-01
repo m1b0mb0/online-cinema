@@ -55,3 +55,8 @@ from src.schemas.ratings import (
     MovieRatingsSummarySchema,
     CurrentMovieRatingsSchema,
 )
+from src.schemas.cart import (
+    CartItemResponseSchema,
+    CartMovieSchema,
+    CartResponseSchema,
+)
