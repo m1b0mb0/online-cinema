@@ -56,6 +56,10 @@ from src.schemas.ratings import (
     CurrentMovieRatingsSchema,
 )
 from src.schemas.cart import (
+    AdminCartDetailResponseSchema,
+    AdminCartListResponseSchema,
+    AdminCartSummarySchema,
+    AdminCartUserSchema,
     CartItemResponseSchema,
     CartMovieSchema,
     CartResponseSchema,

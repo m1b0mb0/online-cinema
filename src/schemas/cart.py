@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from src.schemas.movies import GenreSchema
 
@@ -32,3 +32,31 @@ class CartResponseSchema(BaseModel):
     total_amount: Decimal = Field(ge=0)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AdminCartUserSchema(BaseModel):
+    id: int
+    email: EmailStr
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminCartSummarySchema(BaseModel):
+    id: int
+    user: AdminCartUserSchema
+    items_count: int = Field(ge=0)
+    total_amount: Decimal = Field(ge=0)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminCartListResponseSchema(BaseModel):
+    carts: list[AdminCartSummarySchema]
+    prev_page: str | None
+    next_page: str | None
+    total_pages: int = Field(ge=0)
+    total_items: int = Field(ge=0)
+
+
+class AdminCartDetailResponseSchema(AdminCartSummarySchema):
+    items: list[CartItemResponseSchema]
