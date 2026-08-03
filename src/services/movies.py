@@ -1,8 +1,12 @@
+from collections.abc import Sequence
 from typing import TypeVar
+from uuid import UUID
 
+from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select
-from sqlalchemy.sql import Select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.interfaces import LoaderOption
+from sqlalchemy.sql import Select
 
 from src.database import (
     MovieModel,
@@ -25,6 +29,25 @@ SORT_COLUMNS = {
 }
 
 ModelType = TypeVar("ModelType")
+
+
+async def get_movie_by_uuid_or_404(
+    db: AsyncSession,
+    movie_uuid: UUID,
+    loader_options: Sequence[LoaderOption] = (),
+) -> MovieModel:
+    statement = select(MovieModel).where(MovieModel.uuid == movie_uuid)
+    if loader_options:
+        statement = statement.options(*loader_options)
+
+    movie = await db.scalar(statement)
+    if movie is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with the given UUID was not found.",
+        )
+
+    return movie
 
 
 def apply_movie_sorting(statement: Select, filters: MovieFilterParams) -> Select:

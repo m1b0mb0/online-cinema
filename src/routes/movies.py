@@ -1,4 +1,3 @@
-import math
 from typing import Annotated
 from uuid import UUID
 
@@ -9,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from src.database import (
+    CartItemModel,
     UserModel,
     MovieModel,
     CertificationModel,
@@ -29,8 +29,10 @@ from src.security.dependencies import get_moderator_or_admin_user
 from src.services import (
     apply_movie_filters,
     apply_movie_sorting,
+    get_movie_by_uuid_or_404,
     get_or_create_models_by_name,
 )
+from src.utils import build_pagination
 
 router = APIRouter()
 
@@ -77,36 +79,16 @@ async def get_movie_list(
 
     movie_list = [MovieListItemSchema.model_validate(movie) for movie in movies]
 
-    total_pages = math.ceil(total_items / filters.per_page)
-
-    prev_page = (
-        str(
-            request.url.include_query_params(
-                page=filters.page - 1,
-                per_page=filters.per_page,
-            )
-        )
-        if filters.page > 1
-        else None
-    )
-
-    next_page = (
-        str(
-            request.url.include_query_params(
-                page=filters.page + 1,
-                per_page=filters.per_page,
-            )
-        )
-        if filters.page < total_pages
-        else None
+    pagination = build_pagination(
+        request=request,
+        page=filters.page,
+        per_page=filters.per_page,
+        total_items=total_items,
     )
 
     return MovieListResponseSchema(
         movies=movie_list,
-        prev_page=prev_page,
-        next_page=next_page,
-        total_pages=total_pages,
-        total_items=total_items,
+        **pagination,
     )
 
 
@@ -201,24 +183,16 @@ async def create_movie(
 async def get_movie_by_uuid(
     movie_uuid: UUID, db: AsyncSession = Depends(get_db)
 ) -> MovieDetailSchema:
-    stmt = (
-        select(MovieModel)
-        .options(
+    movie = await get_movie_by_uuid_or_404(
+        db,
+        movie_uuid,
+        loader_options=(
             joinedload(MovieModel.certification),
             selectinload(MovieModel.stars),
             selectinload(MovieModel.genres),
             selectinload(MovieModel.directors),
-        )
-        .where(MovieModel.uuid == movie_uuid)
+        ),
     )
-
-    movie = await db.scalar(stmt)
-
-    if not movie:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
 
     return MovieDetailSchema.model_validate(movie)
 
@@ -244,24 +218,16 @@ async def update_movie(
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_moderator_or_admin_user),
 ) -> MovieDetailSchema:
-    stmt = (
-        select(MovieModel)
-        .options(
+    movie = await get_movie_by_uuid_or_404(
+        db,
+        movie_uuid,
+        loader_options=(
             joinedload(MovieModel.certification),
             selectinload(MovieModel.stars),
             selectinload(MovieModel.genres),
             selectinload(MovieModel.directors),
-        )
-        .where(MovieModel.uuid == movie_uuid)
+        ),
     )
-
-    movie = await db.scalar(stmt)
-
-    if not movie:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
 
     update_data = movie_data.model_dump(exclude_unset=True)
 
@@ -325,6 +291,7 @@ async def update_movie(
     responses={
         **AUTH_RESPONSES,
         404: {"description": "Movie was not found."},
+        409: {"description": "Movie is currently present in a user's cart."},
     },
 )
 async def delete_movie(
@@ -332,15 +299,29 @@ async def delete_movie(
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_moderator_or_admin_user),
 ) -> Response:
-    movie = await db.scalar(select(MovieModel).where(MovieModel.uuid == movie_uuid))
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
-    if not movie:
+    cart_item_id = await db.scalar(
+        select(CartItemModel.id)
+        .where(CartItemModel.movie_id == movie.id)
+        .limit(1)
+    )
+    if cart_item_id is not None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Movie cannot be deleted because it is currently in a user's cart."
+            ),
         )
 
-    await db.delete(movie)
-    await db.commit()
+    try:
+        await db.delete(movie)
+        await db.commit()
+    except IntegrityError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Movie cannot be deleted because it is currently in use.",
+        ) from error
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

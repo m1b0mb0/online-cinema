@@ -10,6 +10,7 @@ from alembic import context
 from src.database.models.base import Base
 from src.database.models import (
     accounts,
+    cart,
     comments,
     favorites,
     movies,

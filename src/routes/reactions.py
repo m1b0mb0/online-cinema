@@ -18,7 +18,6 @@ from src.config import BaseAppSettings, get_email_notificator, get_settings
 from src.database import (
     CommentModel,
     CommentReactionModel,
-    MovieModel,
     MovieReactionModel,
     ReactionTypeEnum,
     UserModel,
@@ -33,6 +32,7 @@ from src.schemas import (
     ReactionRequestSchema,
 )
 from src.security.dependencies import get_current_active_user
+from src.services import get_movie_by_uuid_or_404
 
 router = APIRouter()
 
@@ -41,7 +41,6 @@ AUTH_RESPONSES = {
     403: {"description": "User account is not activated."},
 }
 
-TargetModel = TypeVar("TargetModel", MovieModel, CommentModel)
 ReactionModel = TypeVar(
     "ReactionModel",
     MovieReactionModel,
@@ -49,21 +48,19 @@ ReactionModel = TypeVar(
 )
 
 
-async def _get_reaction_target_or_404(
+async def _get_comment_or_404(
     db: AsyncSession,
-    model: type[TargetModel],
-    target_uuid: UUID,
-    entity_name: str,
-) -> TargetModel:
-    target = await db.scalar(
-        select(model).where(model.uuid == target_uuid)
+    comment_uuid: UUID,
+) -> CommentModel:
+    comment = await db.scalar(
+        select(CommentModel).where(CommentModel.uuid == comment_uuid)
     )
-    if target is None:
+    if comment is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"{entity_name} with the given UUID was not found.",
+            detail="Comment with the given UUID was not found.",
         )
-    return target
+    return comment
 
 
 async def _get_reaction_counts(
@@ -166,12 +163,7 @@ async def get_movie_reaction_summary(
     movie_uuid: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> MovieReactionSummarySchema:
-    movie = await _get_reaction_target_or_404(
-        db,
-        MovieModel,
-        movie_uuid,
-        "Movie",
-    )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
     likes_count, dislikes_count = await _get_reaction_counts(
         db,
         MovieReactionModel,
@@ -205,12 +197,7 @@ async def get_current_user_movie_reaction(
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> CurrentMovieReactionSchema:
-    movie = await _get_reaction_target_or_404(
-        db,
-        MovieModel,
-        movie_uuid,
-        "Movie",
-    )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     reaction = await db.get(
         MovieReactionModel,
@@ -253,12 +240,7 @@ async def set_current_user_movie_reaction(
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> CurrentMovieReactionSchema:
-    movie = await _get_reaction_target_or_404(
-        db,
-        MovieModel,
-        movie_uuid,
-        "Movie",
-    )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
     reaction, _ = await _set_reaction(
         db,
         (current_user.id, movie.id),
@@ -301,12 +283,7 @@ async def remove_current_user_movie_reaction(
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    movie = await _get_reaction_target_or_404(
-        db,
-        MovieModel,
-        movie_uuid,
-        "Movie",
-    )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
     await _remove_reaction(
         db,
         MovieReactionModel,
@@ -328,12 +305,7 @@ async def get_comment_reaction_summary(
     comment_uuid: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> CommentReactionSummarySchema:
-    comment = await _get_reaction_target_or_404(
-        db,
-        CommentModel,
-        comment_uuid,
-        "Comment",
-    )
+    comment = await _get_comment_or_404(db, comment_uuid)
     likes_count, dislikes_count = await _get_reaction_counts(
         db,
         CommentReactionModel,
@@ -367,12 +339,7 @@ async def get_current_user_comment_reaction(
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> CurrentCommentReactionSchema:
-    comment = await _get_reaction_target_or_404(
-        db,
-        CommentModel,
-        comment_uuid,
-        "Comment",
-    )
+    comment = await _get_comment_or_404(db, comment_uuid)
 
     reaction = await db.get(
         CommentReactionModel,
@@ -418,12 +385,7 @@ async def set_current_user_comment_reaction(
     settings: BaseAppSettings = Depends(get_settings),
     email_sender: EmailSenderInterface = Depends(get_email_notificator),
 ) -> CurrentCommentReactionSchema:
-    comment = await _get_reaction_target_or_404(
-        db,
-        CommentModel,
-        comment_uuid,
-        "Comment",
-    )
+    comment = await _get_comment_or_404(db, comment_uuid)
     reaction, previous_reaction_type = await _set_reaction(
         db,
         (current_user.id, comment.id),
@@ -485,12 +447,7 @@ async def remove_current_user_comment_reaction(
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    comment = await _get_reaction_target_or_404(
-        db,
-        CommentModel,
-        comment_uuid,
-        "Comment",
-    )
+    comment = await _get_comment_or_404(db, comment_uuid)
     await _remove_reaction(
         db,
         CommentReactionModel,

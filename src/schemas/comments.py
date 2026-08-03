@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.schemas.pagination import PaginationResponseSchema
+
 
 class CommentSortOrder(StrEnum):
     ASC = "asc"
@@ -66,11 +68,5 @@ class CommentSchema(BaseModel):
     replies_count: int = Field(ge=0)
 
 
-class CommentListResponseSchema(BaseModel):
+class CommentListResponseSchema(PaginationResponseSchema):
     comments: list[CommentSchema]
-    prev_page: str | None
-    next_page: str | None
-    page: int
-    per_page: int
-    total_pages: int
-    total_items: int

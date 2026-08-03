@@ -1,4 +1,3 @@
-import math
 from typing import Annotated
 from uuid import UUID
 
@@ -33,6 +32,8 @@ from src.security.dependencies import (
     ALLOWED_GROUPS,
     get_current_active_user,
 )
+from src.services import get_movie_by_uuid_or_404
+from src.utils import build_pagination
 
 router = APIRouter()
 
@@ -112,14 +113,7 @@ async def get_movie_comments(
     params: Annotated[CommentListParams, Query()],
     db: AsyncSession = Depends(get_db),
 ) -> CommentListResponseSchema:
-    movie = await db.scalar(
-        select(MovieModel).where(MovieModel.uuid == movie_uuid)
-    )
-    if movie is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     condition = CommentModel.movie_id == movie.id
     total_items = await db.scalar(
@@ -158,35 +152,15 @@ async def get_movie_comments(
         for row in rows
     ]
 
-    total_pages = math.ceil(total_items / params.per_page)
-    prev_page = (
-        str(
-            request.url.include_query_params(
-                page=params.page - 1,
-                per_page=params.per_page,
-            )
-        )
-        if params.page > 1
-        else None
-    )
-    next_page = (
-        str(
-            request.url.include_query_params(
-                page=params.page + 1,
-                per_page=params.per_page,
-            )
-        )
-        if params.page < total_pages
-        else None
+    pagination = build_pagination(
+        request=request,
+        page=params.page,
+        per_page=params.per_page,
+        total_items=total_items,
     )
     return CommentListResponseSchema(
         comments=comments,
-        prev_page=prev_page,
-        next_page=next_page,
-        page=params.page,
-        per_page=params.per_page,
-        total_pages=total_pages,
-        total_items=total_items,
+        **pagination,
     )
 
 
@@ -208,14 +182,7 @@ async def create_movie_comment(
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> CommentSchema:
-    movie = await db.scalar(
-        select(MovieModel).where(MovieModel.uuid == movie_uuid)
-    )
-    if movie is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     comment = CommentModel(
         content=data.content,
@@ -304,35 +271,15 @@ async def get_comment_replies(
         for row in rows
     ]
 
-    total_pages = math.ceil(total_items / params.per_page)
-    prev_page = (
-        str(
-            request.url.include_query_params(
-                page=params.page - 1,
-                per_page=params.per_page,
-            )
-        )
-        if params.page > 1
-        else None
-    )
-    next_page = (
-        str(
-            request.url.include_query_params(
-                page=params.page + 1,
-                per_page=params.per_page,
-            )
-        )
-        if params.page < total_pages
-        else None
+    pagination = build_pagination(
+        request=request,
+        page=params.page,
+        per_page=params.per_page,
+        total_items=total_items,
     )
     return CommentListResponseSchema(
         comments=comments,
-        prev_page=prev_page,
-        next_page=next_page,
-        page=params.page,
-        per_page=params.per_page,
-        total_pages=total_pages,
-        total_items=total_items,
+        **pagination,
     )
 
 

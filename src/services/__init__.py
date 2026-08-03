@@ -6,6 +6,7 @@ from src.services.accounts import (
 from src.services.movies import (
     apply_movie_filters,
     apply_movie_sorting,
+    get_movie_by_uuid_or_404,
     get_or_create_models_by_name,
     get_named_models_page,
     get_genres_with_movie_counts,

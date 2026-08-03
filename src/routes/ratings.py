@@ -3,7 +3,6 @@ from uuid import UUID
 from fastapi import (
     APIRouter,
     Depends,
-    HTTPException,
     Response,
     status,
 )
@@ -12,7 +11,6 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import (
-    MovieModel,
     MovieRatingModel,
     UserModel,
     get_db,
@@ -23,6 +21,7 @@ from src.schemas import (
     CurrentMovieRatingsSchema,
 )
 from src.security.dependencies import get_current_active_user
+from src.services import get_movie_by_uuid_or_404
 
 router = APIRouter()
 
@@ -64,14 +63,7 @@ async def get_movie_rating(
     movie_uuid: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> MovieRatingsSummarySchema:
-    movie = await db.scalar(
-        select(MovieModel).where(MovieModel.uuid == movie_uuid)
-    )
-    if movie is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     average_rating, ratings_count = await _get_rating_summary(db, movie.id)
 
@@ -101,14 +93,7 @@ async def get_current_user_movie_rating(
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> CurrentMovieRatingsSchema:
-    movie = await db.scalar(
-        select(MovieModel).where(MovieModel.uuid == movie_uuid)
-    )
-    if movie is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     rating = await db.get(
         MovieRatingModel,
@@ -144,14 +129,7 @@ async def set_current_user_movie_rating(
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> CurrentMovieRatingsSchema:
-    movie = await db.scalar(
-        select(MovieModel).where(MovieModel.uuid == movie_uuid)
-    )
-    if movie is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     rating = await db.get(
         MovieRatingModel,
@@ -215,14 +193,7 @@ async def remove_current_user_movie_rating(
     current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    movie = await db.scalar(
-        select(MovieModel).where(MovieModel.uuid == movie_uuid)
-    )
-    if movie is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given UUID was not found.",
-        )
+    movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     rating = await db.get(
         MovieRatingModel,

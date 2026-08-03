@@ -1,13 +1,151 @@
-from fastapi import APIRouter, Depends, status, HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from decimal import Decimal
+
+from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.security.dependencies import get_admin_user
+from src.schemas import (
+    AdminCartDetailResponseSchema,
+    AdminCartListResponseSchema,
+    AdminCartSummarySchema,
+)
 from src.schemas.accounts import ChangeUserGroupRequestSchema, MessageResponseSchema
-from src.database import get_db, UserModel, UserGroupModel, UserGroupEnum
+from src.database import (
+    get_db,
+    UserModel,
+    UserGroupModel,
+    CartModel,
+    CartItemModel,
+    MovieModel,
+)
+from src.utils import build_pagination
 
 router = APIRouter()
+
+ADMIN_CART_RESPONSES = {
+    401: {"description": "Access token is missing or invalid."},
+    403: {"description": "Administrator privileges are required."},
+}
+
+
+@router.get(
+    "/carts/",
+    response_model=AdminCartListResponseSchema,
+    summary="List User Carts",
+    description=(
+        "Return a paginated overview of user carts for administration and "
+        "troubleshooting. Administrator access is required."
+    ),
+    response_description="Paginated user cart summaries.",
+    responses=ADMIN_CART_RESPONSES,
+)
+async def get_user_carts(
+    request: Request,
+    page: int = Query(default=1, ge=1, description="Page number."),
+    per_page: int = Query(
+        default=20,
+        ge=1,
+        le=100,
+        description="Number of carts per page.",
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_admin_user),
+) -> AdminCartListResponseSchema:
+    total_items = await db.scalar(select(func.count(CartModel.id))) or 0
+    offset = (page - 1) * per_page
+
+    statement = (
+        select(CartModel)
+        .options(
+            selectinload(CartModel.user),
+            selectinload(CartModel.items).selectinload(CartItemModel.movie),
+        )
+        .order_by(CartModel.id)
+        .offset(offset)
+        .limit(per_page)
+    )
+
+    carts = list((await db.scalars(statement)).all())
+
+    cart_summaries = []
+    for cart in carts:
+        total_amount = sum(
+            (item.movie.price for item in cart.items), start=Decimal("0.00")
+        )
+
+        cart_summaries.append(
+            AdminCartSummarySchema(
+                id=cart.id,
+                user=cart.user,
+                items_count=len(cart.items),
+                total_amount=total_amount,
+            )
+        )
+
+    pagination = build_pagination(
+        request=request,
+        page=page,
+        per_page=per_page,
+        total_items=total_items,
+    )
+
+    return AdminCartListResponseSchema(
+        carts=cart_summaries,
+        **pagination,
+    )
+
+
+@router.get(
+    "/users/{user_id}/cart/",
+    response_model=AdminCartDetailResponseSchema,
+    summary="Get User Cart",
+    description=(
+        "Return the movies and total amount in a specific user's cart. "
+        "Administrator access is required."
+    ),
+    response_description="Detailed user shopping cart.",
+    responses={
+        **ADMIN_CART_RESPONSES,
+        404: {"description": "User or shopping cart was not found."},
+    },
+)
+async def get_user_cart(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_admin_user),
+) -> AdminCartDetailResponseSchema:
+    statement = (
+        select(CartModel)
+        .where(CartModel.user_id == user_id)
+        .options(
+            selectinload(CartModel.user),
+            selectinload(CartModel.items)
+            .selectinload(CartItemModel.movie)
+            .selectinload(MovieModel.genres),
+        )
+    )
+    cart = await db.scalar(statement)
+
+    if cart is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shopping cart was not found for the requested user.",
+        )
+
+    total_amount = sum(
+        (item.movie.price for item in cart.items),
+        start=Decimal("0.00"),
+    )
+
+    return AdminCartDetailResponseSchema(
+        id=cart.id,
+        user=cart.user,
+        items_count=len(cart.items),
+        total_amount=total_amount,
+        items=cart.items,
+    )
 
 
 @router.post(
