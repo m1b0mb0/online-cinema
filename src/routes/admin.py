@@ -1,4 +1,3 @@
-import math
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
@@ -21,6 +20,7 @@ from src.database import (
     CartItemModel,
     MovieModel,
 )
+from src.utils import build_pagination
 
 router = APIRouter()
 
@@ -54,7 +54,6 @@ async def get_user_carts(
     current_user: UserModel = Depends(get_admin_user),
 ) -> AdminCartListResponseSchema:
     total_items = await db.scalar(select(func.count(CartModel.id))) or 0
-    total_pages = math.ceil(total_items / per_page)
     offset = (page - 1) * per_page
 
     statement = (
@@ -85,33 +84,16 @@ async def get_user_carts(
             )
         )
 
-    prev_page = (
-        str(
-            request.url.include_query_params(
-                page=page - 1,
-                per_page=per_page,
-            )
-        )
-        if page > 1
-        else None
-    )
-    next_page = (
-        str(
-            request.url.include_query_params(
-                page=page + 1,
-                per_page=per_page,
-            )
-        )
-        if page < total_pages
-        else None
+    pagination = build_pagination(
+        request=request,
+        page=page,
+        per_page=per_page,
+        total_items=total_items,
     )
 
     return AdminCartListResponseSchema(
         carts=cart_summaries,
-        prev_page=prev_page,
-        next_page=next_page,
-        total_pages=total_pages,
-        total_items=total_items,
+        **pagination,
     )
 
 

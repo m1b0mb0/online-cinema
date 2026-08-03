@@ -1,3 +1,4 @@
+from src.schemas.pagination import PaginationResponseSchema
 from src.schemas.accounts import (
     UserRegistrationRequestSchema,
     UserRegistrationResponseSchema,

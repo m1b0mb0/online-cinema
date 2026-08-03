@@ -6,6 +6,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from src.schemas.pagination import PaginationResponseSchema
+
 
 class MovieSortField(StrEnum):
     NEWEST = "newest"
@@ -198,24 +200,12 @@ class GenreMovieCountSchema(BaseModel):
     movie_count: int = Field(description="Number of movies assigned to this genre.")
 
 
-class GenreListResponseSchema(BaseModel):
+class GenreListResponseSchema(PaginationResponseSchema):
     genres: list[GenreMovieCountSchema]
-    prev_page: str | None
-    next_page: str | None
-    page: int
-    per_page: int
-    total_pages: int
-    total_items: int
 
 
-class ActorListResponseSchema(BaseModel):
+class ActorListResponseSchema(PaginationResponseSchema):
     actors: list[StarSchema]
-    prev_page: str | None
-    next_page: str | None
-    page: int
-    per_page: int
-    total_pages: int
-    total_items: int
 
 
 class MovieBaseSchema(BaseModel):
@@ -270,12 +260,8 @@ class MovieListItemSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class MovieListResponseSchema(BaseModel):
+class MovieListResponseSchema(PaginationResponseSchema):
     movies: list[MovieListItemSchema]
-    prev_page: str | None
-    next_page: str | None
-    total_pages: int
-    total_items: int
 
 
 class FavoriteResponseSchema(BaseModel):

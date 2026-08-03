@@ -49,13 +49,13 @@ async def test_catalog_entity_lists_and_details_are_public(client, db_session):
     }
     assert {
         key: genres_data[key]
-        for key in ("page", "per_page", "total_pages", "total_items")
+        for key in ("total_pages", "total_items")
     } == {
-        "page": 1,
-        "per_page": 1,
         "total_pages": 2,
         "total_items": 2,
     }
+    assert "page" not in genres_data
+    assert "per_page" not in genres_data
 
     second_page_response = await client.get(genres_data["next_page"])
     second_page_data = second_page_response.json()

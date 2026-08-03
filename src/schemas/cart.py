@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from src.schemas.movies import GenreSchema
+from src.schemas.pagination import PaginationResponseSchema
 
 
 class CartMovieSchema(BaseModel):
@@ -50,12 +51,8 @@ class AdminCartSummarySchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class AdminCartListResponseSchema(BaseModel):
+class AdminCartListResponseSchema(PaginationResponseSchema):
     carts: list[AdminCartSummarySchema]
-    prev_page: str | None
-    next_page: str | None
-    total_pages: int = Field(ge=0)
-    total_items: int = Field(ge=0)
 
 
 class AdminCartDetailResponseSchema(AdminCartSummarySchema):

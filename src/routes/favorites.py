@@ -1,4 +1,3 @@
-import math
 from typing import Annotated
 from uuid import UUID
 
@@ -16,6 +15,7 @@ from src.schemas import (
 )
 from src.security.dependencies import get_current_active_user
 from src.services import get_favorite_movies_page, get_movie_by_uuid_or_404
+from src.utils import build_pagination
 
 router = APIRouter()
 
@@ -48,35 +48,16 @@ async def get_favorite_movies(
         current_user.id,
         filters,
     )
-    total_pages = math.ceil(total_items / filters.per_page)
-
-    prev_page = (
-        str(
-            request.url.include_query_params(
-                page=filters.page - 1,
-                per_page=filters.per_page,
-            )
-        )
-        if filters.page > 1
-        else None
-    )
-    next_page = (
-        str(
-            request.url.include_query_params(
-                page=filters.page + 1,
-                per_page=filters.per_page,
-            )
-        )
-        if filters.page < total_pages
-        else None
+    pagination = build_pagination(
+        request=request,
+        page=filters.page,
+        per_page=filters.per_page,
+        total_items=total_items,
     )
 
     return MovieListResponseSchema(
         movies=[MovieListItemSchema.model_validate(movie) for movie in movies],
-        prev_page=prev_page,
-        next_page=next_page,
-        total_pages=total_pages,
-        total_items=total_items,
+        **pagination,
     )
 
 

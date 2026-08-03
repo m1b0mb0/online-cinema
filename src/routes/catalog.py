@@ -1,4 +1,3 @@
-import math
 from typing import Annotated, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -23,6 +22,7 @@ from src.services import (
     get_genres_with_movie_counts,
     get_named_models_page,
 )
+from src.utils import build_pagination
 
 router = APIRouter()
 
@@ -32,25 +32,6 @@ AUTH_RESPONSES = {
     401: {"description": "A valid access token is required."},
     403: {"description": "Moderator or administrator privileges are required."},
 }
-
-
-def _build_pagination_links(
-    request: Request,
-    page: int,
-    per_page: int,
-    total_pages: int,
-) -> tuple[str | None, str | None]:
-    prev_page = (
-        str(request.url.include_query_params(page=page - 1, per_page=per_page))
-        if page > 1
-        else None
-    )
-    next_page = (
-        str(request.url.include_query_params(page=page + 1, per_page=per_page))
-        if page < total_pages
-        else None
-    )
-    return prev_page, next_page
 
 
 async def _get_entity_or_404(
@@ -160,21 +141,15 @@ async def get_genre_list(
         params.per_page,
         params.search,
     )
-    total_pages = math.ceil(total_items / params.per_page)
-    prev_page, next_page = _build_pagination_links(
-        request,
-        params.page,
-        params.per_page,
-        total_pages,
+    pagination = build_pagination(
+        request=request,
+        page=params.page,
+        per_page=params.per_page,
+        total_items=total_items,
     )
     return GenreListResponseSchema(
         genres=genres,
-        prev_page=prev_page,
-        next_page=next_page,
-        page=params.page,
-        per_page=params.per_page,
-        total_pages=total_pages,
-        total_items=total_items,
+        **pagination,
     )
 
 
@@ -272,21 +247,15 @@ async def get_actor_list(
         params.per_page,
         params.search,
     )
-    total_pages = math.ceil(total_items / params.per_page)
-    prev_page, next_page = _build_pagination_links(
-        request,
-        params.page,
-        params.per_page,
-        total_pages,
+    pagination = build_pagination(
+        request=request,
+        page=params.page,
+        per_page=params.per_page,
+        total_items=total_items,
     )
     return ActorListResponseSchema(
         actors=actors,
-        prev_page=prev_page,
-        next_page=next_page,
-        page=params.page,
-        per_page=params.per_page,
-        total_pages=total_pages,
-        total_items=total_items,
+        **pagination,
     )
 
 
