@@ -33,6 +33,7 @@ from src.database.models.reactions import (
 )
 from src.database.models.ratings import MovieRatingModel
 from src.database.models.cart import CartModel, CartItemModel
+from src.database.models.order import OrderModel, OrderItemModel, OrderStatusEnum
 
 environment = os.getenv("ENVIRONMENT", "developing")
 

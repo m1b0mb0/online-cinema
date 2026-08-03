@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         MovieReactionModel,
     )
     from src.database.models.ratings import MovieRatingModel
+    from src.database.models.order import OrderModel
 
 
 class UserGroupEnum(str, enum.Enum):
@@ -106,6 +107,10 @@ class UserModel(Base):
     cart: Mapped[Optional["CartModel"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+    orders: Mapped[list["OrderModel"]] = relationship(
+        back_populates="user",
+        passive_deletes=True,
     )
 
     @classmethod
