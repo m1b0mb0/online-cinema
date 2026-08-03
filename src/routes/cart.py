@@ -96,9 +96,17 @@ async def add_movie_to_cart(
         select(CartModel).where(CartModel.user_id == current_user.id)
     )
     if cart is None:
-        cart = CartModel(user_id=current_user.id)
-        db.add(cart)
-        await db.flush()
+        try:
+            async with db.begin_nested():
+                cart = CartModel(user_id=current_user.id)
+                db.add(cart)
+                await db.flush()
+        except IntegrityError:
+            cart = await db.scalar(
+                select(CartModel).where(CartModel.user_id == current_user.id)
+            )
+            if cart is None:
+                raise
 
     existing_item = await db.scalar(
         select(CartItemModel).where(

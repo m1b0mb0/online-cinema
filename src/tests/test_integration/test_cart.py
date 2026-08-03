@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import func, select
 
+from main import app
 from src.database import (
     CartItemModel,
     CartModel,
@@ -12,6 +13,7 @@ from src.database import (
     MovieModel,
     UserGroupEnum,
     UserModel,
+    get_db,
 )
 from src.tests.helpers import create_auth_headers
 
@@ -223,6 +225,68 @@ async def test_cart_rejects_duplicates_and_handles_missing_movies(
     )
     assert remove_response.status_code == 204
     assert repeated_remove_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_add_movie_recovers_when_another_request_creates_cart_first(
+    client,
+    db_session,
+    jwt_manager,
+    seed_user_groups,
+    monkeypatch,
+):
+    user, headers = await create_user_with_headers(
+        db_session,
+        jwt_manager,
+        "concurrent-cart-user@example.com",
+    )
+    movie = build_movie(
+        "Concurrent Cart Movie",
+        CertificationModel(name="TV-MA"),
+        price="13.50",
+    )
+    existing_cart = CartModel(user_id=user.id)
+    db_session.add_all([movie, existing_cart])
+    await db_session.commit()
+
+    original_scalar = db_session.scalar
+    cart_lookup_was_hidden = False
+
+    async def scalar_with_stale_first_cart_lookup(statement, *args, **kwargs):
+        nonlocal cart_lookup_was_hidden
+        entity = statement.column_descriptions[0].get("entity")
+        if entity is CartModel and not cart_lookup_was_hidden:
+            cart_lookup_was_hidden = True
+            return None
+        return await original_scalar(statement, *args, **kwargs)
+
+    async def override_get_db():
+        yield db_session
+
+    monkeypatch.setattr(db_session, "scalar", scalar_with_stale_first_cart_lookup)
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        response = await client.post(
+            f"/theater/cart/items/{movie.uuid}/",
+            headers=headers,
+        )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 201
+    assert response.json()["movie"]["uuid"] == str(movie.uuid)
+    assert await db_session.scalar(
+        select(func.count())
+        .select_from(CartModel)
+        .where(CartModel.user_id == user.id)
+    ) == 1
+    cart_item = await db_session.scalar(
+        select(CartItemModel).where(
+            CartItemModel.cart_id == existing_cart.id,
+            CartItemModel.movie_id == movie.id,
+        )
+    )
+    assert cart_item is not None
 
 
 @pytest.mark.asyncio
