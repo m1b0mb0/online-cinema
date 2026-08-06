@@ -5,5 +5,6 @@ from src.routes.cart import router as cart_router
 from src.routes.comments import router as comments_router
 from src.routes.favorites import router as favorites_router
 from src.routes.movies import router as movies_router
+from src.routes.order import router as orders_router
 from src.routes.reactions import router as reactions_router
 from src.routes.ratings import router as ratings_router

@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from src.database.models.reactions import MovieReactionModel
     from src.database.models.ratings import MovieRatingModel
     from src.database.models.cart import CartItemModel
+    from src.database.models.order import OrderItemModel
 
 MovieStarsModel = Table(
     "movie_stars",
@@ -164,6 +165,10 @@ class MovieModel(Base):
         cascade="all, delete-orphan",
     )
     cart_items: Mapped[list["CartItemModel"]] = relationship(
+        back_populates="movie",
+        passive_deletes=True,
+    )
+    order_items: Mapped[list["OrderItemModel"]] = relationship(
         back_populates="movie",
         passive_deletes=True,
     )
