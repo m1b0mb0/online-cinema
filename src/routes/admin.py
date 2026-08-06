@@ -1,4 +1,6 @@
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
 from sqlalchemy import func, select
@@ -10,6 +12,9 @@ from src.schemas import (
     AdminCartDetailResponseSchema,
     AdminCartListResponseSchema,
     AdminCartSummarySchema,
+    AdminOrderFilterParams,
+    AdminOrderResponseSchema,
+    AdminOrderListResponseSchema,
 )
 from src.schemas.accounts import ChangeUserGroupRequestSchema, MessageResponseSchema
 from src.database import (
@@ -19,15 +24,95 @@ from src.database import (
     CartModel,
     CartItemModel,
     MovieModel,
+    OrderModel,
+    OrderItemModel,
 )
 from src.utils import build_pagination
 
 router = APIRouter()
 
-ADMIN_CART_RESPONSES = {
+ADMIN_RESPONSES = {
     401: {"description": "Access token is missing or invalid."},
     403: {"description": "Administrator privileges are required."},
 }
+
+
+@router.get(
+    "/orders/",
+    response_model=AdminOrderListResponseSchema,
+    summary="List User Orders",
+    description=(
+        "Return a paginated list of user orders filtered by user, creation "
+        "date, and status. Administrator access is required."
+    ),
+    response_description="Paginated user order summaries.",
+    responses=ADMIN_RESPONSES,
+)
+async def get_admin_orders(
+    request: Request,
+    filters: Annotated[AdminOrderFilterParams, Query()],
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_admin_user),
+) -> AdminOrderListResponseSchema:
+    conditions = []
+
+    if filters.user_id is not None:
+        conditions.append(OrderModel.user_id == filters.user_id)
+
+    if filters.status is not None:
+        conditions.append(OrderModel.status == filters.status)
+
+    if filters.date_from is not None:
+        date_from = datetime.combine(filters.date_from, time.min, tzinfo=timezone.utc)
+        conditions.append(OrderModel.created_at >= date_from)
+
+    if filters.date_to is not None:
+        if filters.date_to < date.max:
+            date_to = datetime.combine(
+                filters.date_to + timedelta(days=1),
+                time.min,
+                tzinfo=timezone.utc,
+            )
+            conditions.append(OrderModel.created_at < date_to)
+
+    total_items = await db.scalar(select(func.count(OrderModel.id)).where(*conditions))
+
+    statement = (
+        select(OrderModel)
+        .where(*conditions)
+        .options(
+            selectinload(OrderModel.user),
+            selectinload(OrderModel.items).selectinload(OrderItemModel.movie),
+        )
+        .order_by(OrderModel.created_at.desc(), OrderModel.id.desc())
+        .offset((filters.page - 1) * filters.per_page)
+        .limit(filters.per_page)
+    )
+
+    orders = (await db.scalars(statement)).all()
+
+    order_responses = []
+    for order in orders:
+        order_responses.append(
+            AdminOrderResponseSchema(
+                id=order.id,
+                created_at=order.created_at,
+                status=order.status,
+                total_amount=order.total_amount,
+                items_count=len(order.items),
+                items=order.items,
+                user=order.user,
+            )
+        )
+
+    pagination = build_pagination(
+        request=request,
+        page=filters.page,
+        per_page=filters.per_page,
+        total_items=total_items,
+    )
+
+    return AdminOrderListResponseSchema(orders=order_responses, **pagination)
 
 
 @router.get(
@@ -39,7 +124,7 @@ ADMIN_CART_RESPONSES = {
         "troubleshooting. Administrator access is required."
     ),
     response_description="Paginated user cart summaries.",
-    responses=ADMIN_CART_RESPONSES,
+    responses=ADMIN_RESPONSES,
 )
 async def get_user_carts(
     request: Request,
@@ -53,7 +138,7 @@ async def get_user_carts(
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_admin_user),
 ) -> AdminCartListResponseSchema:
-    total_items = await db.scalar(select(func.count(CartModel.id))) or 0
+    total_items = await db.scalar(select(func.count(CartModel.id)))
     offset = (page - 1) * per_page
 
     statement = (
@@ -67,7 +152,7 @@ async def get_user_carts(
         .limit(per_page)
     )
 
-    carts = list((await db.scalars(statement)).all())
+    carts = (await db.scalars(statement)).all()
 
     cart_summaries = []
     for cart in carts:
@@ -107,7 +192,7 @@ async def get_user_carts(
     ),
     response_description="Detailed user shopping cart.",
     responses={
-        **ADMIN_CART_RESPONSES,
+        **ADMIN_RESPONSES,
         404: {"description": "User or shopping cart was not found."},
     },
 )
