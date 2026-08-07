@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     )
     from src.database.models.ratings import MovieRatingModel
     from src.database.models.order import OrderModel
+    from src.database.models.payments import PaymentModel
 
 
 class UserGroupEnum(str, enum.Enum):
@@ -109,6 +110,10 @@ class UserModel(Base):
         cascade="all, delete-orphan",
     )
     orders: Mapped[list["OrderModel"]] = relationship(
+        back_populates="user",
+        passive_deletes=True,
+    )
+    payments: Mapped[list["PaymentModel"]] = relationship(
         back_populates="user",
         passive_deletes=True,
     )
