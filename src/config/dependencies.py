@@ -1,6 +1,7 @@
 from functools import lru_cache
 
 from fastapi import Depends
+import stripe
 
 from src.config.settings import Settings, BaseAppSettings
 from src.security.interfaces import JWTAuthManagerInterface
@@ -44,3 +45,12 @@ def get_email_notificator(
 
 
 get_accounts_email_notificator = get_email_notificator
+
+
+def get_stripe_client(
+    settings: BaseAppSettings = Depends(get_settings),
+) -> stripe.StripeClient:
+    return stripe.StripeClient(
+        settings.STRIPE_SECRET_KEY,
+        max_network_retries=2,
+    )
