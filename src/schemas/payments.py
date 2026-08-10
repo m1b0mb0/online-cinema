@@ -79,5 +79,11 @@ class PaymentRefundRequestSchema(BaseModel):
     )
 
 
+class PaymentRefundResponseSchema(BaseModel):
+    payment: PaymentResponseSchema
+    refund_id: str
+    refund_status: str
+
+
 class PaymentWebhookResponseSchema(BaseModel):
     received: bool = True

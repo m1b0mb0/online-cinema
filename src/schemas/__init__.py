@@ -85,6 +85,7 @@ from src.schemas.payments import (
     PaymentListResponseSchema,
     PaymentOrderItemSchema,
     PaymentRefundRequestSchema,
+    PaymentRefundResponseSchema,
     PaymentResponseSchema,
     PaymentWebhookResponseSchema,
 )
