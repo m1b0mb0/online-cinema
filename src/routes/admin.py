@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import datetime, time, timezone
 from decimal import Decimal
 from typing import Annotated
 
@@ -6,15 +6,20 @@ from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.elements import ColumnElement
 
 from src.security.dependencies import get_admin_user
 from src.schemas import (
     AdminCartDetailResponseSchema,
     AdminCartListResponseSchema,
     AdminCartSummarySchema,
+    AdminPaginationParams,
     AdminOrderFilterParams,
     AdminOrderResponseSchema,
     AdminOrderListResponseSchema,
+    AdminPaymentFilterParams,
+    AdminPaymentResponseSchema,
+    AdminPaymentListResponseSchema,
 )
 from src.schemas.accounts import ChangeUserGroupRequestSchema, MessageResponseSchema
 from src.database import (
@@ -26,6 +31,8 @@ from src.database import (
     MovieModel,
     OrderModel,
     OrderItemModel,
+    PaymentModel,
+    PaymentItemModel,
 )
 from src.utils import build_pagination
 
@@ -35,6 +42,102 @@ ADMIN_RESPONSES = {
     401: {"description": "Access token is missing or invalid."},
     403: {"description": "Administrator privileges are required."},
 }
+
+
+def build_admin_filter_conditions(
+    model: type[OrderModel] | type[PaymentModel],
+    filters: AdminOrderFilterParams | AdminPaymentFilterParams,
+) -> list[ColumnElement[bool]]:
+    conditions = []
+
+    if filters.user_id is not None:
+        conditions.append(model.user_id == filters.user_id)
+
+    if filters.status is not None:
+        conditions.append(model.status == filters.status)
+
+    if filters.date_from is not None:
+        date_from = datetime.combine(
+            filters.date_from,
+            time.min,
+            tzinfo=timezone.utc,
+        )
+        conditions.append(model.created_at >= date_from)
+
+    if filters.date_to is not None:
+        date_to = datetime.combine(
+            filters.date_to,
+            time.max,
+            tzinfo=timezone.utc,
+        )
+        conditions.append(model.created_at <= date_to)
+
+    return conditions
+
+
+@router.get(
+    "/payments/",
+    response_model=AdminPaymentListResponseSchema,
+    summary="List User Payments",
+    description=(
+        "Return a paginated list of payments filtered by user, creation date, "
+        "and status. Administrator access is required."
+    ),
+    response_description="Paginated user payments.",
+    responses=ADMIN_RESPONSES,
+)
+async def get_admin_payments(
+    request: Request,
+    filters: Annotated[AdminPaymentFilterParams, Query()],
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_admin_user),
+) -> AdminPaymentListResponseSchema:
+    conditions = build_admin_filter_conditions(PaymentModel, filters)
+
+    total_items = await db.scalar(
+        select(func.count(PaymentModel.id)).where(*conditions)
+    )
+
+    statement = (
+        select(PaymentModel)
+        .where(*conditions)
+        .options(
+            selectinload(PaymentModel.user),
+            selectinload(PaymentModel.items)
+            .selectinload(PaymentItemModel.order_item)
+            .selectinload(OrderItemModel.movie),
+        )
+        .order_by(PaymentModel.created_at.desc(), PaymentModel.id.desc())
+        .offset((filters.page - 1) * filters.per_page)
+        .limit(filters.per_page)
+    )
+
+    payments = (await db.scalars(statement)).all()
+
+    payment_responses = []
+    for payment in payments:
+        payment_responses.append(
+            AdminPaymentResponseSchema(
+                id=payment.id,
+                order_id=payment.order_id,
+                created_at=payment.created_at,
+                status=payment.status,
+                amount=payment.amount,
+                external_payment_id=payment.external_payment_id,
+                items_count=len(payment.items),
+                items=payment.items,
+                user=payment.user,
+            )
+        )
+
+    pagination = build_pagination(
+        request=request,
+        page=filters.page,
+        per_page=filters.per_page,
+        total_items=total_items,
+    )
+
+    return AdminPaymentListResponseSchema(payments=payment_responses, **pagination)
 
 
 @router.get(
@@ -54,26 +157,7 @@ async def get_admin_orders(
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_admin_user),
 ) -> AdminOrderListResponseSchema:
-    conditions = []
-
-    if filters.user_id is not None:
-        conditions.append(OrderModel.user_id == filters.user_id)
-
-    if filters.status is not None:
-        conditions.append(OrderModel.status == filters.status)
-
-    if filters.date_from is not None:
-        date_from = datetime.combine(filters.date_from, time.min, tzinfo=timezone.utc)
-        conditions.append(OrderModel.created_at >= date_from)
-
-    if filters.date_to is not None:
-        if filters.date_to < date.max:
-            date_to = datetime.combine(
-                filters.date_to + timedelta(days=1),
-                time.min,
-                tzinfo=timezone.utc,
-            )
-            conditions.append(OrderModel.created_at < date_to)
+    conditions = build_admin_filter_conditions(OrderModel, filters)
 
     total_items = await db.scalar(select(func.count(OrderModel.id)).where(*conditions))
 
@@ -128,18 +212,12 @@ async def get_admin_orders(
 )
 async def get_user_carts(
     request: Request,
-    page: int = Query(default=1, ge=1, description="Page number."),
-    per_page: int = Query(
-        default=20,
-        ge=1,
-        le=100,
-        description="Number of carts per page.",
-    ),
+    params: Annotated[AdminPaginationParams, Query()],
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_admin_user),
 ) -> AdminCartListResponseSchema:
     total_items = await db.scalar(select(func.count(CartModel.id)))
-    offset = (page - 1) * per_page
+    offset = (params.page - 1) * params.per_page
 
     statement = (
         select(CartModel)
@@ -149,7 +227,7 @@ async def get_user_carts(
         )
         .order_by(CartModel.id)
         .offset(offset)
-        .limit(per_page)
+        .limit(params.per_page)
     )
 
     carts = (await db.scalars(statement)).all()
@@ -171,8 +249,8 @@ async def get_user_carts(
 
     pagination = build_pagination(
         request=request,
-        page=page,
-        per_page=per_page,
+        page=params.page,
+        per_page=params.per_page,
         total_items=total_items,
     )
 

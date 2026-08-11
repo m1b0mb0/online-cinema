@@ -9,6 +9,7 @@ class StubEmailSender(EmailSenderInterface):
         self.password_reset_complete_emails: list[dict[str, str]] = []
         self.comment_reply_emails: list[dict[str, str]] = []
         self.comment_like_emails: list[dict[str, str]] = []
+        self.payment_confirmation_emails: list[dict[str, str | int]] = []
 
     async def send_activation_email(self, email: str, activation_link: str) -> None:
         self.activation_emails.append(
@@ -42,4 +43,22 @@ class StubEmailSender(EmailSenderInterface):
     ) -> None:
         self.comment_like_emails.append(
             {"email": email, "comment_link": comment_link}
+        )
+
+    async def send_payment_confirmation_email(
+        self,
+        email: str,
+        order_id: int,
+        amount: str,
+        currency: str,
+        payment_link: str,
+    ) -> None:
+        self.payment_confirmation_emails.append(
+            {
+                "email": email,
+                "order_id": order_id,
+                "amount": amount,
+                "currency": currency,
+                "payment_link": payment_link,
+            }
         )

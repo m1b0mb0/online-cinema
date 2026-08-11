@@ -20,6 +20,7 @@ from src.database.models.base import Base
 if TYPE_CHECKING:
     from src.database.models.accounts import UserModel
     from src.database.models.movies import MovieModel
+    from src.database.models.payments import PaymentModel, PaymentItemModel
 
 
 class OrderStatusEnum(StrEnum):
@@ -58,6 +59,10 @@ class OrderModel(Base):
         back_populates="order",
         cascade="all, delete-orphan",
     )
+    payments: Mapped[list["PaymentModel"]] = relationship(
+        back_populates="order",
+        passive_deletes=True,
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -83,6 +88,10 @@ class OrderItemModel(Base):
 
     order: Mapped["OrderModel"] = relationship(back_populates="items")
     movie: Mapped["MovieModel"] = relationship(back_populates="order_items")
+    payment_items: Mapped[list["PaymentItemModel"]] = relationship(
+        back_populates="order_item",
+        passive_deletes=True,
+    )
 
     __table_args__ = (
         CheckConstraint(

@@ -25,8 +25,8 @@ from src.schemas import (
     CommentListParams,
     CommentListResponseSchema,
     CommentSchema,
-    CommentSortOrder,
     CommentUpdateSchema,
+    SortOrder,
 )
 from src.security.dependencies import (
     ALLOWED_GROUPS,
@@ -121,7 +121,7 @@ async def get_movie_comments(
     ) or 0
 
     order_columns = (CommentModel.created_at, CommentModel.id)
-    if params.sort_order == CommentSortOrder.ASC:
+    if params.sort_order == SortOrder.ASC:
         order_by = [column.asc() for column in order_columns]
     else:
         order_by = [column.desc() for column in order_columns]
@@ -240,7 +240,7 @@ async def get_comment_replies(
     ) or 0
 
     order_columns = (CommentModel.created_at, CommentModel.id)
-    if params.sort_order == CommentSortOrder.ASC:
+    if params.sort_order == SortOrder.ASC:
         order_by = [column.asc() for column in order_columns]
     else:
         order_by = [column.desc() for column in order_columns]

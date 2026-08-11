@@ -11,6 +11,9 @@ from src.database import (
     CertificationModel,
     GenreModel,
     MovieModel,
+    OrderItemModel,
+    OrderModel,
+    OrderStatusEnum,
     UserGroupEnum,
     UserModel,
     get_db,
@@ -225,6 +228,104 @@ async def test_cart_rejects_duplicates_and_handles_missing_movies(
     )
     assert remove_response.status_code == 204
     assert repeated_remove_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_cart_rejects_purchased_movie_for_its_owner(
+    client,
+    db_session,
+    jwt_manager,
+    seed_user_groups,
+):
+    owner, owner_headers = await create_user_with_headers(
+        db_session,
+        jwt_manager,
+        "purchased-cart-owner@example.com",
+    )
+    outsider, _ = await create_user_with_headers(
+        db_session,
+        jwt_manager,
+        "purchased-cart-outsider@example.com",
+    )
+    certification = CertificationModel(name="G")
+    purchased_movie = build_movie(
+        "Purchased Cart Movie",
+        certification,
+        price="10.00",
+    )
+    canceled_movie = build_movie(
+        "Canceled Order Cart Movie",
+        certification,
+        price="11.00",
+    )
+    outsider_movie = build_movie(
+        "Other User Purchased Movie",
+        certification,
+        price="12.00",
+    )
+    db_session.add_all(
+        [
+            OrderModel(
+                user_id=owner.id,
+                status=OrderStatusEnum.PAID,
+                total_amount=purchased_movie.price,
+                items=[
+                    OrderItemModel(
+                        movie=purchased_movie,
+                        price_at_order=purchased_movie.price,
+                    )
+                ],
+            ),
+            OrderModel(
+                user_id=owner.id,
+                status=OrderStatusEnum.CANCELED,
+                total_amount=canceled_movie.price,
+                items=[
+                    OrderItemModel(
+                        movie=canceled_movie,
+                        price_at_order=canceled_movie.price,
+                    )
+                ],
+            ),
+            OrderModel(
+                user_id=outsider.id,
+                status=OrderStatusEnum.PAID,
+                total_amount=outsider_movie.price,
+                items=[
+                    OrderItemModel(
+                        movie=outsider_movie,
+                        price_at_order=outsider_movie.price,
+                    )
+                ],
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    purchased_response = await client.post(
+        f"/theater/cart/items/{purchased_movie.uuid}/",
+        headers=owner_headers,
+    )
+
+    assert purchased_response.status_code == 409
+    assert purchased_response.json()["detail"] == (
+        "Movie has already been purchased and cannot be added to the cart."
+    )
+    assert await db_session.scalar(
+        select(CartModel).where(CartModel.user_id == owner.id)
+    ) is None
+
+    canceled_response = await client.post(
+        f"/theater/cart/items/{canceled_movie.uuid}/",
+        headers=owner_headers,
+    )
+    outsider_purchase_response = await client.post(
+        f"/theater/cart/items/{outsider_movie.uuid}/",
+        headers=owner_headers,
+    )
+
+    assert canceled_response.status_code == 201
+    assert outsider_purchase_response.status_code == 201
 
 
 @pytest.mark.asyncio

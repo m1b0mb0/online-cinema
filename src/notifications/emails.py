@@ -25,6 +25,7 @@ class EmailSender(EmailSenderInterface):
         password_complete_email_template_name: str,
         comment_reply_template_name: str,
         comment_like_template_name: str,
+        payment_confirmation_template_name: str,
     ):
         self._hostname = hostname
         self._port = port
@@ -41,6 +42,9 @@ class EmailSender(EmailSenderInterface):
         )
         self._comment_reply_template_name = comment_reply_template_name
         self._comment_like_template_name = comment_like_template_name
+        self._payment_confirmation_template_name = (
+            payment_confirmation_template_name
+        )
 
         self._env = Environment(loader=FileSystemLoader(template_dir))
 
@@ -107,4 +111,24 @@ class EmailSender(EmailSenderInterface):
         template = self._env.get_template(self._comment_like_template_name)
         html_content = template.render(comment_link=comment_link)
         subject = "Your Comment Received A Like"
+        await self._send_email(email, subject, html_content)
+
+    async def send_payment_confirmation_email(
+        self,
+        email: str,
+        order_id: int,
+        amount: str,
+        currency: str,
+        payment_link: str,
+    ) -> None:
+        template = self._env.get_template(
+            self._payment_confirmation_template_name
+        )
+        html_content = template.render(
+            order_id=order_id,
+            amount=amount,
+            currency=currency,
+            payment_link=payment_link,
+        )
+        subject = f"Payment Confirmation For Order #{order_id}"
         await self._send_email(email, subject, html_content)

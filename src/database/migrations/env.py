@@ -15,6 +15,7 @@ from src.database.models import (
     favorites,
     movies,
     order,
+    payments,
     ratings,
     reactions,
 )

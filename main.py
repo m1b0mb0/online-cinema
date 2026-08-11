@@ -9,6 +9,7 @@ from src.routes import (
     favorites_router,
     movies_router,
     orders_router,
+    payments_router,
     ratings_router,
     reactions_router,
 )
@@ -26,6 +27,7 @@ app.include_router(catalog_router, prefix=f"/theater", tags=["Catalog"])
 app.include_router(comments_router, prefix=f"/theater", tags=["Comments"])
 app.include_router(movies_router, prefix=f"/theater", tags=["Theater"])
 app.include_router(orders_router, prefix=f"/theater", tags=["Orders"])
+app.include_router(payments_router, prefix=f"/theater", tags=["Payments"])
 app.include_router(favorites_router, prefix=f"/theater", tags=["Favorites"])
 app.include_router(reactions_router, prefix=f"/theater", tags=["Reactions"])
 app.include_router(ratings_router, prefix=f"/theater", tags=["Ratings"])

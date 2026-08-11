@@ -17,6 +17,7 @@ class BaseAppSettings(BaseSettings):
     PASSWORD_RESET_COMPLETE_TEMPLATE_NAME: str = "password_reset_complete.html"
     COMMENT_REPLY_TEMPLATE_NAME: str = "comment_reply.html"
     COMMENT_LIKE_TEMPLATE_NAME: str = "comment_like.html"
+    PAYMENT_CONFIRMATION_TEMPLATE_NAME: str = "payment_confirmation.html"
 
     LOGIN_TIME_DAYS: int = 7
 
@@ -28,6 +29,18 @@ class BaseAppSettings(BaseSettings):
     MAILHOG_API_PORT: int = os.getenv("MAILHOG_API_PORT", 8025)
 
     CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+
+    STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "")
+    STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    STRIPE_CURRENCY: str = os.getenv("STRIPE_CURRENCY", "usd")
+    STRIPE_SUCCESS_URL: str = os.getenv(
+        "STRIPE_SUCCESS_URL",
+        "http://127.0.0.1:8000/payment-success"
+        "?session_id={CHECKOUT_SESSION_ID}",
+    )
+    STRIPE_CANCEL_URL: str = os.getenv(
+        "STRIPE_CANCEL_URL", "http://127.0.0.1:8000/payment-canceled"
+    )
 
 
 class Settings(BaseAppSettings):

@@ -15,6 +15,9 @@ from src.database import (
     StarModel,
     GenreModel,
     DirectorModel,
+    OrderItemModel,
+    OrderModel,
+    OrderStatusEnum,
 )
 from src.schemas.movies import (
     MovieUpdateSchema,
@@ -22,10 +25,14 @@ from src.schemas.movies import (
     MovieDetailSchema,
     MovieListItemSchema,
     MovieListResponseSchema,
-    MovieFilterParams,
 )
+from src.schemas.filters import MovieFilterParams
+from src.schemas.pagination import PaginationParams
 from src.database import get_db
-from src.security.dependencies import get_moderator_or_admin_user
+from src.security.dependencies import (
+    get_current_active_user,
+    get_moderator_or_admin_user,
+)
 from src.services import (
     apply_movie_filters,
     apply_movie_sorting,
@@ -39,6 +46,11 @@ router = APIRouter()
 AUTH_RESPONSES = {
     401: {"description": "A valid access token is required."},
     403: {"description": "Moderator or administrator privileges are required."},
+}
+
+USER_AUTH_RESPONSES = {
+    401: {"description": "Access token is missing or invalid."},
+    403: {"description": "User account is not activated."},
 }
 
 
@@ -88,6 +100,68 @@ async def get_movie_list(
 
     return MovieListResponseSchema(
         movies=movie_list,
+        **pagination,
+    )
+
+
+@router.get(
+    "/movies/purchased/",
+    response_model=MovieListResponseSchema,
+    summary="List Purchased Movies",
+    description=(
+        "Return a paginated list of movies from the current user's paid orders. "
+        "Movies from pending, canceled, or refunded orders are not included."
+    ),
+    response_description="Paginated purchased movie list.",
+    responses=USER_AUTH_RESPONSES,
+)
+async def get_purchased_movies(
+    request: Request,
+    params: Annotated[PaginationParams, Query()],
+    current_user: UserModel = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> MovieListResponseSchema:
+    purchased_movies = (
+        select(
+            OrderItemModel.movie_id.label("movie_id"),
+            func.max(OrderModel.created_at).label("purchased_at"),
+        )
+        .join(OrderModel, OrderItemModel.order_id == OrderModel.id)
+        .where(
+            OrderModel.user_id == current_user.id,
+            OrderModel.status == OrderStatusEnum.PAID,
+        )
+        .group_by(OrderItemModel.movie_id)
+        .subquery()
+    )
+
+    total_items = await db.scalar(select(func.count()).select_from(purchased_movies))
+
+    movies = (
+        await db.scalars(
+            select(MovieModel)
+            .join(
+                purchased_movies,
+                purchased_movies.c.movie_id == MovieModel.id,
+            )
+            .order_by(
+                purchased_movies.c.purchased_at.desc(),
+                MovieModel.id.desc(),
+            )
+            .offset((params.page - 1) * params.per_page)
+            .limit(params.per_page)
+        )
+    ).all()
+
+    pagination = build_pagination(
+        request=request,
+        page=params.page,
+        per_page=params.per_page,
+        total_items=total_items,
+    )
+
+    return MovieListResponseSchema(
+        movies=[MovieListItemSchema.model_validate(movie) for movie in movies],
         **pagination,
     )
 
@@ -291,7 +365,12 @@ async def update_movie(
     responses={
         **AUTH_RESPONSES,
         404: {"description": "Movie was not found."},
-        409: {"description": "Movie is currently present in a user's cart."},
+        409: {
+            "description": (
+                "Movie is present in a user's cart, has been purchased, "
+                "or is otherwise in use."
+            )
+        },
     },
 )
 async def delete_movie(
@@ -302,9 +381,7 @@ async def delete_movie(
     movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     cart_item_id = await db.scalar(
-        select(CartItemModel.id)
-        .where(CartItemModel.movie_id == movie.id)
-        .limit(1)
+        select(CartItemModel.id).where(CartItemModel.movie_id == movie.id).limit(1)
     )
     if cart_item_id is not None:
         raise HTTPException(
@@ -312,6 +389,21 @@ async def delete_movie(
             detail=(
                 "Movie cannot be deleted because it is currently in a user's cart."
             ),
+        )
+
+    purchased_item_id = await db.scalar(
+        select(OrderItemModel.id)
+        .join(OrderModel, OrderItemModel.order_id == OrderModel.id)
+        .where(
+            OrderItemModel.movie_id == movie.id,
+            OrderModel.status == OrderStatusEnum.PAID,
+        )
+        .limit(1)
+    )
+    if purchased_item_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Movie cannot be deleted because it has been purchased by a user.",
         )
 
     try:
