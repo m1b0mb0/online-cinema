@@ -365,7 +365,12 @@ async def update_movie(
     responses={
         **AUTH_RESPONSES,
         404: {"description": "Movie was not found."},
-        409: {"description": "Movie is currently present in a user's cart."},
+        409: {
+            "description": (
+                "Movie is present in a user's cart, has been purchased, "
+                "or is otherwise in use."
+            )
+        },
     },
 )
 async def delete_movie(
@@ -384,6 +389,21 @@ async def delete_movie(
             detail=(
                 "Movie cannot be deleted because it is currently in a user's cart."
             ),
+        )
+
+    purchased_item_id = await db.scalar(
+        select(OrderItemModel.id)
+        .join(OrderModel, OrderItemModel.order_id == OrderModel.id)
+        .where(
+            OrderItemModel.movie_id == movie.id,
+            OrderModel.status == OrderStatusEnum.PAID,
+        )
+        .limit(1)
+    )
+    if purchased_item_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Movie cannot be deleted because it has been purchased by a user.",
         )
 
     try:

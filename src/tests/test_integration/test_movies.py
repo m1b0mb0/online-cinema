@@ -3,14 +3,19 @@ from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from src.database import (
     CertificationModel,
     DirectorModel,
     GenreModel,
     MovieModel,
+    OrderItemModel,
+    OrderModel,
+    OrderStatusEnum,
     StarModel,
     UserGroupEnum,
+    UserModel,
 )
 from src.tests.helpers import create_auth_headers
 
@@ -362,6 +367,63 @@ async def test_moderator_can_create_update_and_delete_movie(
     assert delete_response.status_code == 204
     assert delete_response.content == b""
     assert (await client.get(f"/theater/movies/{movie_uuid}/")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_moderator_cannot_delete_purchased_movie(
+    client,
+    db_session,
+    jwt_manager,
+    seed_user_groups,
+):
+    owner_email = "purchased-movie-owner@example.com"
+    await create_auth_headers(
+        db_session,
+        jwt_manager,
+        UserGroupEnum.USER,
+        owner_email,
+    )
+    owner = await db_session.scalar(
+        select(UserModel).where(UserModel.email == owner_email)
+    )
+    assert owner is not None
+    moderator_headers = await create_auth_headers(
+        db_session,
+        jwt_manager,
+        UserGroupEnum.MODERATOR,
+        "purchased-movie-moderator@example.com",
+    )
+    movie = build_movie(
+        "Purchased Movie Protected From Deletion",
+        CertificationModel(name="NC-17"),
+        price="15.00",
+    )
+    order = OrderModel(
+        user_id=owner.id,
+        status=OrderStatusEnum.PAID,
+        total_amount=movie.price,
+        items=[
+            OrderItemModel(
+                movie=movie,
+                price_at_order=movie.price,
+            )
+        ],
+    )
+    db_session.add(order)
+    await db_session.commit()
+    movie_id = movie.id
+
+    response = await client.delete(
+        f"/theater/movies/{movie.uuid}/",
+        headers=moderator_headers,
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Movie cannot be deleted because it has been purchased by a user."
+    )
+    db_session.expire_all()
+    assert await db_session.get(MovieModel, movie_id) is not None
 
 
 @pytest.mark.asyncio
