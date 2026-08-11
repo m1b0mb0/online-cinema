@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import (
@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, joinedload
 
 from src.config import BaseAppSettings, get_email_notificator, get_settings
-from src.database import CommentModel, MovieModel, UserModel, get_db
+from src.database import CommentModel, UserModel, get_db
 from src.notifications import EmailSenderInterface
 from src.schemas import (
     CommentAuthorSchema,
@@ -37,7 +37,7 @@ from src.utils import build_pagination
 
 router = APIRouter()
 
-AUTH_RESPONSES = {
+AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Access token is missing or invalid."},
     403: {"description": "User account is not activated or access is denied."},
 }
@@ -116,9 +116,9 @@ async def get_movie_comments(
     movie = await get_movie_by_uuid_or_404(db, movie_uuid)
 
     condition = CommentModel.movie_id == movie.id
-    total_items = await db.scalar(
-        select(func.count(CommentModel.id)).where(condition)
-    ) or 0
+    total_items = (
+        await db.scalar(select(func.count(CommentModel.id)).where(condition)) or 0
+    )
 
     order_columns = (CommentModel.created_at, CommentModel.id)
     if params.sort_order == SortOrder.ASC:
@@ -147,10 +147,7 @@ async def get_movie_comments(
         .limit(params.per_page)
     )
     rows = (await db.execute(statement)).all()
-    comments = [
-        _serialize_comment(row[0], int(row.replies_count or 0))
-        for row in rows
-    ]
+    comments = [_serialize_comment(row[0], int(row.replies_count or 0)) for row in rows]
 
     pagination = build_pagination(
         request=request,
@@ -235,9 +232,9 @@ async def get_comment_replies(
 ) -> CommentListResponseSchema:
     parent, _ = await _get_comment_or_404(db, comment_uuid)
     condition = CommentModel.parent_id == parent.id
-    total_items = await db.scalar(
-        select(func.count(CommentModel.id)).where(condition)
-    ) or 0
+    total_items = (
+        await db.scalar(select(func.count(CommentModel.id)).where(condition)) or 0
+    )
 
     order_columns = (CommentModel.created_at, CommentModel.id)
     if params.sort_order == SortOrder.ASC:
@@ -266,10 +263,7 @@ async def get_comment_replies(
         .limit(params.per_page)
     )
     rows = (await db.execute(statement)).all()
-    comments = [
-        _serialize_comment(row[0], int(row.replies_count or 0))
-        for row in rows
-    ]
+    comments = [_serialize_comment(row[0], int(row.replies_count or 0)) for row in rows]
 
     pagination = build_pagination(
         request=request,
@@ -322,9 +316,7 @@ async def reply_to_comment(
         ) from error
 
     if parent.user_id != current_user.id:
-        comment_link = (
-            f"{settings.APP_BASE_URL}/theater/comments/{reply.uuid}/"
-        )
+        comment_link = f"{settings.APP_BASE_URL}/theater/comments/{reply.uuid}/"
         background_tasks.add_task(
             email_sender.send_comment_reply_email,
             str(parent.user.email),

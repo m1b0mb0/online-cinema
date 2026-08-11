@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from fastapi import (
@@ -16,16 +17,16 @@ from src.database import (
     get_db,
 )
 from src.schemas import (
-    RatingRequestSchema,
-    MovieRatingsSummarySchema,
     CurrentMovieRatingsSchema,
+    MovieRatingsSummarySchema,
+    RatingRequestSchema,
 )
 from src.security.dependencies import get_current_active_user
 from src.services import get_movie_by_uuid_or_404
 
 router = APIRouter()
 
-AUTH_RESPONSES = {
+AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Access token is missing or invalid."},
     403: {"description": "User account is not activated."},
 }
@@ -44,9 +45,7 @@ async def _get_rating_summary(
         )
     ).one()
     return (
-        round(float(average_rating), 2)
-        if average_rating is not None
-        else None,
+        round(float(average_rating), 2) if average_rating is not None else None,
         int(ratings_count),
     )
 

@@ -1,7 +1,7 @@
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,26 +9,26 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from src.database import (
     CartItemModel,
-    UserModel,
-    MovieModel,
     CertificationModel,
-    StarModel,
-    GenreModel,
     DirectorModel,
+    GenreModel,
+    MovieModel,
     OrderItemModel,
     OrderModel,
     OrderStatusEnum,
+    StarModel,
+    UserModel,
+    get_db,
 )
+from src.schemas.filters import MovieFilterParams
 from src.schemas.movies import (
-    MovieUpdateSchema,
     MovieCreateSchema,
     MovieDetailSchema,
     MovieListItemSchema,
     MovieListResponseSchema,
+    MovieUpdateSchema,
 )
-from src.schemas.filters import MovieFilterParams
 from src.schemas.pagination import PaginationParams
-from src.database import get_db
 from src.security.dependencies import (
     get_current_active_user,
     get_moderator_or_admin_user,
@@ -43,12 +43,12 @@ from src.utils import build_pagination
 
 router = APIRouter()
 
-AUTH_RESPONSES = {
+AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "A valid access token is required."},
     403: {"description": "Moderator or administrator privileges are required."},
 }
 
-USER_AUTH_RESPONSES = {
+USER_AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Access token is missing or invalid."},
     403: {"description": "User account is not activated."},
 }
@@ -135,7 +135,9 @@ async def get_purchased_movies(
         .subquery()
     )
 
-    total_items = await db.scalar(select(func.count()).select_from(purchased_movies))
+    total_items = (
+        await db.scalar(select(func.count()).select_from(purchased_movies))
+    ) or 0
 
     movies = (
         await db.scalars(
@@ -239,11 +241,11 @@ async def create_movie(
 
         return MovieDetailSchema.model_validate(movie)
 
-    except IntegrityError:
+    except IntegrityError as error:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data."
-        )
+        ) from error
 
 
 @router.get(
@@ -348,11 +350,11 @@ async def update_movie(
             movie,
             ["certification", "stars", "genres", "directors"],
         )
-    except IntegrityError:
+    except IntegrityError as error:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input data."
-        )
+        ) from error
 
     return MovieDetailSchema.model_validate(movie)
 

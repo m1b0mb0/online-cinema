@@ -1,13 +1,13 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from src.database import get_db, UserModel, UserGroupEnum
 from src.config import get_jwt_auth_manager
-from src.security.interfaces import JWTAuthManagerInterface
+from src.database import UserGroupEnum, UserModel, get_db
 from src.exceptions import BaseSecurityError
+from src.security.interfaces import JWTAuthManagerInterface
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/accounts/login/")
 ALLOWED_GROUPS = {
@@ -23,10 +23,10 @@ async def get_current_user(
 ) -> UserModel:
     try:
         token_payload = jwt_manager.decode_access_token(token)
-    except BaseSecurityError:
+    except BaseSecurityError as error:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token."
-        )
+        ) from error
 
     user_id = token_payload["user_id"]
     user = await db.scalar(

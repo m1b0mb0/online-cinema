@@ -1,6 +1,6 @@
 import enum
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     Boolean,
@@ -14,22 +14,22 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.database.models.base import Base
 from src.database.validators import accounts as validators
 from src.security.passwords import hash_password, verify_password
 from src.security.utils import generate_secure_token
-from src.database.models.base import Base
 
 if TYPE_CHECKING:
     from src.database.models.cart import CartModel
     from src.database.models.comments import CommentModel
     from src.database.models.favorites import FavoriteModel
+    from src.database.models.order import OrderModel
+    from src.database.models.payments import PaymentModel
+    from src.database.models.ratings import MovieRatingModel
     from src.database.models.reactions import (
         CommentReactionModel,
         MovieReactionModel,
     )
-    from src.database.models.ratings import MovieRatingModel
-    from src.database.models.order import OrderModel
-    from src.database.models.payments import PaymentModel
 
 
 class UserGroupEnum(str, enum.Enum):

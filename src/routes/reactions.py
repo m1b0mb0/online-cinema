@@ -1,4 +1,4 @@
-from typing import TypeVar
+from typing import Any, TypeVar
 from uuid import UUID
 
 from fastapi import (
@@ -36,7 +36,7 @@ from src.services import get_movie_by_uuid_or_404
 
 router = APIRouter()
 
-AUTH_RESPONSES = {
+AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Access token is missing or invalid."},
     403: {"description": "User account is not activated."},
 }
@@ -103,9 +103,7 @@ async def _set_reaction(
 ) -> tuple[ReactionModel, ReactionTypeEnum | None]:
     reaction_model = type(new_reaction)
     reaction = await db.get(reaction_model, key)
-    previous_reaction_type = (
-        reaction.reaction_type if reaction is not None else None
-    )
+    previous_reaction_type = reaction.reaction_type if reaction is not None else None
     if reaction is None:
         reaction = new_reaction
         db.add(reaction)
@@ -183,8 +181,7 @@ async def get_movie_reaction_summary(
     response_model=CurrentMovieReactionSchema,
     summary="Get Current User Movie Reaction",
     description=(
-        "Return the current user's reaction and aggregate reaction counts "
-        "for a movie."
+        "Return the current user's reaction and aggregate reaction counts for a movie."
     ),
     response_description="Current reaction and movie reaction counts.",
     responses={
@@ -405,9 +402,7 @@ async def set_current_user_comment_reaction(
             select(UserModel.email).where(UserModel.id == comment.user_id)
         )
         if comment_author_email is not None:
-            comment_link = (
-                f"{settings.APP_BASE_URL}/theater/comments/{comment.uuid}/"
-            )
+            comment_link = f"{settings.APP_BASE_URL}/theater/comments/{comment.uuid}/"
             background_tasks.add_task(
                 email_sender.send_comment_like_email,
                 str(comment_author_email),

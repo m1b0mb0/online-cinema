@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
@@ -26,7 +27,7 @@ class BaseAppSettings(BaseSettings):
     EMAIL_HOST_USER: str = os.getenv("EMAIL_HOST_USER", "testuser")
     EMAIL_HOST_PASSWORD: str = os.getenv("EMAIL_HOST_PASSWORD", "test_password")
     EMAIL_USE_TLS: bool = os.getenv("EMAIL_USE_TLS", "False").lower() == "true"
-    MAILHOG_API_PORT: int = os.getenv("MAILHOG_API_PORT", 8025)
+    MAILHOG_API_PORT: int = int(os.getenv("MAILHOG_API_PORT", "8025"))
 
     CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 
@@ -35,8 +36,7 @@ class BaseAppSettings(BaseSettings):
     STRIPE_CURRENCY: str = os.getenv("STRIPE_CURRENCY", "usd")
     STRIPE_SUCCESS_URL: str = os.getenv(
         "STRIPE_SUCCESS_URL",
-        "http://127.0.0.1:8000/payment-success"
-        "?session_id={CHECKOUT_SESSION_ID}",
+        "http://127.0.0.1:8000/payment-success?session_id={CHECKOUT_SESSION_ID}",
     )
     STRIPE_CANCEL_URL: str = os.getenv(
         "STRIPE_CANCEL_URL", "http://127.0.0.1:8000/payment-canceled"
@@ -50,6 +50,6 @@ class Settings(BaseAppSettings):
     POSTGRES_DB_PORT: int = int(os.getenv("POSTGRES_DB_PORT", 5432))
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "test_db")
 
-    SECRET_KEY_ACCESS: str = os.getenv("SECRET_KEY_ACCESS", os.urandom(32))
-    SECRET_KEY_REFRESH: str = os.getenv("SECRET_KEY_REFRESH", os.urandom(32))
+    SECRET_KEY_ACCESS: str = os.getenv("SECRET_KEY_ACCESS", os.urandom(32).hex())
+    SECRET_KEY_REFRESH: str = os.getenv("SECRET_KEY_REFRESH", os.urandom(32).hex())
     JWT_SIGNING_ALGORITHM: str = os.getenv("JWT_SIGNING_ALGORITHM", "HS256")

@@ -9,12 +9,12 @@ from sqlalchemy.orm.interfaces import LoaderOption
 from sqlalchemy.sql import Select
 
 from src.database import (
-    MovieModel,
-    GenreModel,
     CertificationModel,
     DirectorModel,
     FavoriteModel,
+    GenreModel,
     MovieGenresModel,
+    MovieModel,
     StarModel,
 )
 from src.schemas import MovieFilterParams, MovieSortField, SortOrder
@@ -28,7 +28,13 @@ SORT_COLUMNS = {
     MovieSortField.POPULARITY: MovieModel.votes,
 }
 
-ModelType = TypeVar("ModelType")
+ModelType = TypeVar(
+    "ModelType",
+    CertificationModel,
+    DirectorModel,
+    GenreModel,
+    StarModel,
+)
 
 
 async def get_movie_by_uuid_or_404(
@@ -218,9 +224,7 @@ async def get_named_model_by_name(
     model: type[ModelType],
     name: str,
 ) -> ModelType | None:
-    return await db.scalar(
-        select(model).where(func.lower(model.name) == name.lower())
-    )
+    return await db.scalar(select(model).where(func.lower(model.name) == name.lower()))
 
 
 async def get_favorite_movies_page(
@@ -241,9 +245,9 @@ async def get_favorite_movies_page(
     total_items = await db.scalar(count_statement) or 0
 
     statement = apply_movie_sorting(statement, filters)
-    statement = statement.offset(
-        (filters.page - 1) * filters.per_page
-    ).limit(filters.per_page)
+    statement = statement.offset((filters.page - 1) * filters.per_page).limit(
+        filters.per_page
+    )
     movies = list((await db.scalars(statement)).all())
 
     return movies, total_items

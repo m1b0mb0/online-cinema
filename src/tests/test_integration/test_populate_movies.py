@@ -97,9 +97,7 @@ async def get_movie_catalog_snapshot(db_session) -> dict[str, dict]:
             "certification": movie.certification.name,
             "genres": tuple(sorted(genre.name for genre in movie.genres)),
             "stars": tuple(sorted(star.name for star in movie.stars)),
-            "directors": tuple(
-                sorted(director.name for director in movie.directors)
-            ),
+            "directors": tuple(sorted(director.name for director in movie.directors)),
         }
         for movie in movies
     }
@@ -166,8 +164,7 @@ async def test_populate_movies_creates_catalog_with_decimal_prices(
         },
     }
     assert all(
-        isinstance(movie["price"], Decimal)
-        and movie["price"].as_tuple().exponent == -2
+        isinstance(movie["price"], Decimal) and movie["price"].as_tuple().exponent == -2
         for movie in catalog.values()
     )
 

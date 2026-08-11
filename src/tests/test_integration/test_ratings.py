@@ -41,9 +41,7 @@ async def create_user_with_headers(
         UserGroupEnum.USER,
         email,
     )
-    user = await db_session.scalar(
-        select(UserModel).where(UserModel.email == email)
-    )
+    user = await db_session.scalar(select(UserModel).where(UserModel.email == email))
     assert user is not None
     return user, headers
 
@@ -92,9 +90,7 @@ async def test_movie_rating_can_be_created_updated_and_removed(
     db_session.add(movie)
     await db_session.commit()
 
-    public_empty_response = await client.get(
-        f"/theater/movies/{movie.uuid}/ratings/"
-    )
+    public_empty_response = await client.get(f"/theater/movies/{movie.uuid}/ratings/")
     current_empty_response = await client.get(
         f"/theater/movies/{movie.uuid}/rating/",
         headers=headers,
@@ -177,9 +173,7 @@ async def test_movie_rating_can_be_created_updated_and_removed(
     assert delete_response.content == b""
     assert repeated_delete_response.status_code == 204
 
-    public_summary = await client.get(
-        f"/theater/movies/{movie_uuid}/ratings/"
-    )
+    public_summary = await client.get(f"/theater/movies/{movie_uuid}/ratings/")
     assert public_summary.json()["average_rating"] is None
     assert public_summary.json()["ratings_count"] == 0
 
@@ -218,9 +212,7 @@ async def test_movie_ratings_are_aggregated_and_current_rating_is_private(
     assert first_response.status_code == 200
     assert second_response.status_code == 200
 
-    public_summary = await client.get(
-        f"/theater/movies/{movie.uuid}/ratings/"
-    )
+    public_summary = await client.get(f"/theater/movies/{movie.uuid}/ratings/")
     first_user_state = await client.get(
         f"/theater/movies/{movie.uuid}/rating/",
         headers=first_headers,
@@ -267,9 +259,7 @@ async def test_rating_mutations_require_authentication(
     ]
 
     assert all(response.status_code == 401 for response in responses)
-    public_response = await client.get(
-        f"/theater/movies/{movie.uuid}/ratings/"
-    )
+    public_response = await client.get(f"/theater/movies/{movie.uuid}/ratings/")
     assert public_response.status_code == 200
 
 

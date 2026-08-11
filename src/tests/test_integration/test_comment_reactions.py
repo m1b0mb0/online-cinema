@@ -42,9 +42,7 @@ async def create_user_with_headers(
         UserGroupEnum.USER,
         email,
     )
-    user = await db_session.scalar(
-        select(UserModel).where(UserModel.email == email)
-    )
+    user = await db_session.scalar(select(UserModel).where(UserModel.email == email))
     assert user is not None
     return user, headers
 
@@ -150,9 +148,7 @@ async def test_comment_reaction_can_be_created_repeated_switched_and_removed(
     assert delete_response.content == b""
     assert repeated_delete_response.status_code == 204
 
-    summary_response = await client.get(
-        f"/theater/comments/{comment_uuid}/reactions/"
-    )
+    summary_response = await client.get(f"/theater/comments/{comment_uuid}/reactions/")
     assert summary_response.status_code == 200
     assert summary_response.json() == {
         "comment_uuid": str(comment_uuid),
@@ -200,9 +196,7 @@ async def test_comment_reaction_counts_and_current_reaction_are_separate(
     assert first_response.status_code == 200
     assert second_response.status_code == 200
 
-    public_summary = await client.get(
-        f"/theater/comments/{comment.uuid}/reactions/"
-    )
+    public_summary = await client.get(f"/theater/comments/{comment.uuid}/reactions/")
     first_user_state = await client.get(
         f"/theater/comments/{comment.uuid}/reaction/",
         headers=first_headers,
@@ -249,15 +243,11 @@ async def test_comment_reaction_mutations_require_authentication(
             f"/theater/comments/{comment.uuid}/reaction/",
             json={"reaction_type": "like"},
         ),
-        await client.delete(
-            f"/theater/comments/{comment.uuid}/reaction/"
-        ),
+        await client.delete(f"/theater/comments/{comment.uuid}/reaction/"),
     ]
 
     assert all(response.status_code == 401 for response in responses)
-    public_response = await client.get(
-        f"/theater/comments/{comment.uuid}/reactions/"
-    )
+    public_response = await client.get(f"/theater/comments/{comment.uuid}/reactions/")
     assert public_response.status_code == 200
 
 

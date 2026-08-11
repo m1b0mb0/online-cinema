@@ -21,9 +21,7 @@ pytestmark = pytest.mark.integration
 
 async def create_user(db_session, email: str) -> UserModel:
     group = await db_session.scalar(
-        select(UserGroupModel).where(
-            UserGroupModel.name == UserGroupEnum.USER
-        )
+        select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER)
     )
     assert group is not None
 
@@ -80,9 +78,7 @@ async def test_comment_models_support_replies_and_reactions(
         comment=root_comment,
         reaction_type=ReactionTypeEnum.LIKE,
     )
-    db_session.add_all(
-        [root_comment, reply, author_reaction, reader_reaction]
-    )
+    db_session.add_all([root_comment, reply, author_reaction, reader_reaction])
     await db_session.commit()
 
     loaded_comment = await db_session.scalar(

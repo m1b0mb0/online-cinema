@@ -1,6 +1,6 @@
 import logging
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import aiosmtplib
 from jinja2 import Environment, FileSystemLoader
@@ -10,7 +10,6 @@ from src.notifications.interfaces import EmailSenderInterface
 
 
 class EmailSender(EmailSenderInterface):
-
     def __init__(
         self,
         hostname: str,
@@ -42,9 +41,7 @@ class EmailSender(EmailSenderInterface):
         )
         self._comment_reply_template_name = comment_reply_template_name
         self._comment_like_template_name = comment_like_template_name
-        self._payment_confirmation_template_name = (
-            payment_confirmation_template_name
-        )
+        self._payment_confirmation_template_name = payment_confirmation_template_name
 
         self._env = Environment(loader=FileSystemLoader(template_dir))
 
@@ -69,7 +66,9 @@ class EmailSender(EmailSenderInterface):
             await smtp.quit()
         except aiosmtplib.SMTPException as error:
             logging.error(f"Failed to send email to {recipient}: {error}")
-            raise BaseEmailError(f"Failed to send email to {recipient}: {error}")
+            raise BaseEmailError(
+                f"Failed to send email to {recipient}: {error}"
+            ) from error
 
     async def send_activation_email(self, email: str, activation_link: str) -> None:
         template = self._env.get_template(self._activation_email_template_name)
@@ -97,17 +96,13 @@ class EmailSender(EmailSenderInterface):
         subject = "Your Password Has Been Successfully Reset"
         await self._send_email(email, subject, html_content)
 
-    async def send_comment_reply_email(
-        self, email: str, comment_link: str
-    ) -> None:
+    async def send_comment_reply_email(self, email: str, comment_link: str) -> None:
         template = self._env.get_template(self._comment_reply_template_name)
         html_content = template.render(comment_link=comment_link)
         subject = "New Reply To Your Comment"
         await self._send_email(email, subject, html_content)
 
-    async def send_comment_like_email(
-        self, email: str, comment_link: str
-    ) -> None:
+    async def send_comment_like_email(self, email: str, comment_link: str) -> None:
         template = self._env.get_template(self._comment_like_template_name)
         html_content = template.render(comment_link=comment_link)
         subject = "Your Comment Received A Like"
@@ -121,9 +116,7 @@ class EmailSender(EmailSenderInterface):
         currency: str,
         payment_link: str,
     ) -> None:
-        template = self._env.get_template(
-            self._payment_confirmation_template_name
-        )
+        template = self._env.get_template(self._payment_confirmation_template_name)
         html_content = template.render(
             order_id=order_id,
             amount=amount,

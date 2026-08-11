@@ -41,9 +41,7 @@ async def create_user_with_headers(
         group,
         email,
     )
-    user = await db_session.scalar(
-        select(UserModel).where(UserModel.email == email)
-    )
+    user = await db_session.scalar(select(UserModel).where(UserModel.email == email))
     assert user is not None
     return user, headers
 
@@ -64,9 +62,7 @@ async def test_user_can_create_and_public_can_read_movie_comment(
     db_session.add(movie)
     await db_session.commit()
 
-    empty_response = await client.get(
-        f"/theater/movies/{movie.uuid}/comments/"
-    )
+    empty_response = await client.get(f"/theater/movies/{movie.uuid}/comments/")
     anonymous_create_response = await client.post(
         f"/theater/movies/{movie.uuid}/comments/",
         json={"content": "Anonymous comment."},
@@ -96,12 +92,8 @@ async def test_user_can_create_and_public_can_read_movie_comment(
     }
     assert "email" not in created_comment["author"]
 
-    detail_response = await client.get(
-        f"/theater/comments/{comment_uuid}/"
-    )
-    list_response = await client.get(
-        f"/theater/movies/{movie.uuid}/comments/"
-    )
+    detail_response = await client.get(f"/theater/comments/{comment_uuid}/")
+    list_response = await client.get(f"/theater/movies/{movie.uuid}/comments/")
 
     assert detail_response.status_code == 200
     assert detail_response.json()["uuid"] == comment_uuid
@@ -169,17 +161,13 @@ async def test_comment_replies_are_in_movie_list_and_grouped_by_parent(
         f"/theater/movies/{movie.uuid}/comments/",
         params={"sort_order": "asc"},
     )
-    root_detail_response = await client.get(
-        f"/theater/comments/{root_uuid}/"
-    )
+    root_detail_response = await client.get(f"/theater/comments/{root_uuid}/")
 
     assert [
-        comment["uuid"]
-        for comment in root_replies_response.json()["comments"]
+        comment["uuid"] for comment in root_replies_response.json()["comments"]
     ] == [reply_uuid]
     assert [
-        comment["uuid"]
-        for comment in nested_replies_response.json()["comments"]
+        comment["uuid"] for comment in nested_replies_response.json()["comments"]
     ] == [nested_uuid]
     movie_comments = movie_comments_response.json()["comments"]
     assert movie_comments_response.json()["total_items"] == 3
@@ -246,8 +234,7 @@ async def test_comment_list_supports_sorting_and_pagination(
 
     second_page_response = await client.get(first_page["next_page"])
     assert [
-        comment["content"]
-        for comment in second_page_response.json()["comments"]
+        comment["content"] for comment in second_page_response.json()["comments"]
     ] == ["Third comment."]
 
 
@@ -351,9 +338,7 @@ async def test_comment_api_validates_content_and_unknown_resources(
         json={"content": "Valid content."},
         headers=headers,
     )
-    unknown_comment_response = await client.get(
-        f"/theater/comments/{uuid4()}/"
-    )
+    unknown_comment_response = await client.get(f"/theater/comments/{uuid4()}/")
 
     assert blank_response.status_code == 422
     assert extra_field_response.status_code == 422

@@ -34,9 +34,7 @@ async def create_user_with_headers(
         group,
         email,
     )
-    user = await db_session.scalar(
-        select(UserModel).where(UserModel.email == email)
-    )
+    user = await db_session.scalar(select(UserModel).where(UserModel.email == email))
     assert user is not None
     return user, headers
 
@@ -64,8 +62,7 @@ def build_payment(
         user=user,
         status=(
             OrderStatusEnum.PAID
-            if status
-            in {PaymentStatusEnum.SUCCESSFUL, PaymentStatusEnum.REFUNDED}
+            if status in {PaymentStatusEnum.SUCCESSFUL, PaymentStatusEnum.REFUNDED}
             else OrderStatusEnum.PENDING
         ),
         total_amount=movie.price,
@@ -159,9 +156,7 @@ async def test_admin_can_list_all_payments_with_users_and_pagination(
     }
     assert response_data["payments"][0]["items_count"] == 1
     assert (
-        response_data["payments"][0]["items"][0]["order_item"]["movie"][
-            "name"
-        ]
+        response_data["payments"][0]["items"][0]["order_item"]["movie"]["name"]
         == "New Admin Payment Movie"
     )
 
@@ -171,9 +166,9 @@ async def test_admin_can_list_all_payments_with_users_and_pagination(
     )
 
     assert next_page_response.status_code == 200
-    assert [
-        payment["id"] for payment in next_page_response.json()["payments"]
-    ] == [payments[0].id]
+    assert [payment["id"] for payment in next_page_response.json()["payments"]] == [
+        payments[0].id
+    ]
 
 
 @pytest.mark.asyncio

@@ -1,44 +1,44 @@
 from datetime import datetime, time, timezone
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql.elements import ColumnElement
 
-from src.security.dependencies import get_admin_user
+from src.database import (
+    CartItemModel,
+    CartModel,
+    MovieModel,
+    OrderItemModel,
+    OrderModel,
+    PaymentItemModel,
+    PaymentModel,
+    UserGroupModel,
+    UserModel,
+    get_db,
+)
 from src.schemas import (
     AdminCartDetailResponseSchema,
     AdminCartListResponseSchema,
     AdminCartSummarySchema,
-    AdminPaginationParams,
     AdminOrderFilterParams,
-    AdminOrderResponseSchema,
     AdminOrderListResponseSchema,
+    AdminOrderResponseSchema,
+    AdminPaginationParams,
     AdminPaymentFilterParams,
-    AdminPaymentResponseSchema,
     AdminPaymentListResponseSchema,
+    AdminPaymentResponseSchema,
 )
 from src.schemas.accounts import ChangeUserGroupRequestSchema, MessageResponseSchema
-from src.database import (
-    get_db,
-    UserModel,
-    UserGroupModel,
-    CartModel,
-    CartItemModel,
-    MovieModel,
-    OrderModel,
-    OrderItemModel,
-    PaymentModel,
-    PaymentItemModel,
-)
+from src.security.dependencies import get_admin_user
 from src.utils import build_pagination
 
 router = APIRouter()
 
-ADMIN_RESPONSES = {
+ADMIN_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Access token is missing or invalid."},
     403: {"description": "Administrator privileges are required."},
 }
@@ -94,9 +94,9 @@ async def get_admin_payments(
 ) -> AdminPaymentListResponseSchema:
     conditions = build_admin_filter_conditions(PaymentModel, filters)
 
-    total_items = await db.scalar(
-        select(func.count(PaymentModel.id)).where(*conditions)
-    )
+    total_items = (
+        await db.scalar(select(func.count(PaymentModel.id)).where(*conditions))
+    ) or 0
 
     statement = (
         select(PaymentModel)
@@ -159,7 +159,9 @@ async def get_admin_orders(
 ) -> AdminOrderListResponseSchema:
     conditions = build_admin_filter_conditions(OrderModel, filters)
 
-    total_items = await db.scalar(select(func.count(OrderModel.id)).where(*conditions))
+    total_items = (
+        await db.scalar(select(func.count(OrderModel.id)).where(*conditions))
+    ) or 0
 
     statement = (
         select(OrderModel)
@@ -216,7 +218,7 @@ async def get_user_carts(
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_admin_user),
 ) -> AdminCartListResponseSchema:
-    total_items = await db.scalar(select(func.count(CartModel.id)))
+    total_items = await db.scalar(select(func.count(CartModel.id))) or 0
     offset = (params.page - 1) * params.per_page
 
     statement = (

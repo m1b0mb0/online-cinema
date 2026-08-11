@@ -14,7 +14,6 @@ from src.database import (
 )
 from src.tasks.accounts import _delete_expired_tokens
 
-
 PASSWORD = "StrongPassword123!"
 NEW_PASSWORD = "NewStrongPassword123!"
 
@@ -170,9 +169,7 @@ async def test_activation_email_link_can_activate_account(
     assert query_params["email"] == [payload["email"]]
     assert query_params["token"][0]
 
-    activation_response = await client.get(
-        f"{parsed_link.path}?{parsed_link.query}"
-    )
+    activation_response = await client.get(f"{parsed_link.path}?{parsed_link.query}")
 
     assert activation_response.status_code == 200
     assert email_sender_stub.activation_complete_emails[-1]["login_link"] == (
@@ -438,7 +435,9 @@ async def test_password_reset_flow_success(
     assert request_response.status_code == 200
 
     reset_token = await db_session.scalar(
-        select(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
+        select(PasswordResetTokenModel).where(
+            PasswordResetTokenModel.user_id == user.id
+        )
     )
     assert reset_token is not None
 
@@ -459,7 +458,9 @@ async def test_password_reset_flow_success(
     assert user.verify_password(NEW_PASSWORD)
 
     deleted_token = await db_session.scalar(
-        select(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
+        select(PasswordResetTokenModel).where(
+            PasswordResetTokenModel.user_id == user.id
+        )
     )
     assert deleted_token is None
 
@@ -505,7 +506,9 @@ async def test_password_reset_expired_token_is_rejected_and_deleted(
     )
 
     reset_token = await db_session.scalar(
-        select(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
+        select(PasswordResetTokenModel).where(
+            PasswordResetTokenModel.user_id == user.id
+        )
     )
     assert reset_token is not None
     reset_token.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
@@ -524,14 +527,18 @@ async def test_password_reset_expired_token_is_rejected_and_deleted(
     assert response.json()["detail"] == "Invalid email or token."
 
     deleted_token = await db_session.scalar(
-        select(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
+        select(PasswordResetTokenModel).where(
+            PasswordResetTokenModel.user_id == user.id
+        )
     )
     assert deleted_token is None
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_change_password_success(client, db_session, jwt_manager, seed_user_groups):
+async def test_change_password_success(
+    client, db_session, jwt_manager, seed_user_groups
+):
     user = await create_user(db_session, email="change@example.com")
     access_token = jwt_manager.create_access_token({"user_id": user.id})
 
@@ -581,7 +588,9 @@ async def test_admin_can_change_user_group(
 
     assert response.status_code == 200
     await db_session.refresh(user)
-    assert user.group_id == (await get_user_group(db_session, UserGroupEnum.MODERATOR)).id
+    assert (
+        user.group_id == (await get_user_group(db_session, UserGroupEnum.MODERATOR)).id
+    )
 
 
 @pytest.mark.integration
@@ -603,7 +612,10 @@ async def test_non_admin_cannot_change_user_group(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "You do not have permission to perform this action."
+    assert (
+        response.json()["detail"]
+        == "You do not have permission to perform this action."
+    )
 
 
 @pytest.mark.integration

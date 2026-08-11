@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 
 
 class EmailSenderInterface(ABC):
-
     @abstractmethod
     async def send_activation_email(self, email: str, activation_link: str) -> None:
         pass
@@ -22,15 +21,11 @@ class EmailSenderInterface(ABC):
         pass
 
     @abstractmethod
-    async def send_comment_reply_email(
-        self, email: str, comment_link: str
-    ) -> None:
+    async def send_comment_reply_email(self, email: str, comment_link: str) -> None:
         pass
 
     @abstractmethod
-    async def send_comment_like_email(
-        self, email: str, comment_link: str
-    ) -> None:
+    async def send_comment_like_email(self, email: str, comment_link: str) -> None:
         pass
 
     @abstractmethod
