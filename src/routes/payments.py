@@ -34,7 +34,7 @@ from src.database import (
 from src.schemas import (
     PaymentCheckoutResponseSchema,
     PaymentConfirmationResponseSchema,
-    PaymentListParams,
+    PaginationParams,
     PaymentListResponseSchema,
     PaymentRefundRequestSchema,
     PaymentRefundResponseSchema,
@@ -213,7 +213,7 @@ async def create_payment_checkout(
 )
 async def get_current_user_payments(
     request: Request,
-    params: Annotated[PaymentListParams, Query()],
+    params: Annotated[PaginationParams, Query()],
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_active_user),
 ) -> PaymentListResponseSchema:

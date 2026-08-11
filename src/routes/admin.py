@@ -12,6 +12,7 @@ from src.schemas import (
     AdminCartDetailResponseSchema,
     AdminCartListResponseSchema,
     AdminCartSummarySchema,
+    AdminPaginationParams,
     AdminOrderFilterParams,
     AdminOrderResponseSchema,
     AdminOrderListResponseSchema,
@@ -128,18 +129,12 @@ async def get_admin_orders(
 )
 async def get_user_carts(
     request: Request,
-    page: int = Query(default=1, ge=1, description="Page number."),
-    per_page: int = Query(
-        default=20,
-        ge=1,
-        le=100,
-        description="Number of carts per page.",
-    ),
+    params: Annotated[AdminPaginationParams, Query()],
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_admin_user),
 ) -> AdminCartListResponseSchema:
     total_items = await db.scalar(select(func.count(CartModel.id)))
-    offset = (page - 1) * per_page
+    offset = (params.page - 1) * params.per_page
 
     statement = (
         select(CartModel)
@@ -149,7 +144,7 @@ async def get_user_carts(
         )
         .order_by(CartModel.id)
         .offset(offset)
-        .limit(per_page)
+        .limit(params.per_page)
     )
 
     carts = (await db.scalars(statement)).all()
@@ -171,8 +166,8 @@ async def get_user_carts(
 
     pagination = build_pagination(
         request=request,
-        page=page,
-        per_page=per_page,
+        page=params.page,
+        per_page=params.per_page,
         total_items=total_items,
     )
 

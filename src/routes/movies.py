@@ -22,8 +22,8 @@ from src.schemas.movies import (
     MovieDetailSchema,
     MovieListItemSchema,
     MovieListResponseSchema,
-    MovieFilterParams,
 )
+from src.schemas.filters import MovieFilterParams
 from src.database import get_db
 from src.security.dependencies import get_moderator_or_admin_user
 from src.services import (

@@ -1,31 +1,9 @@
 from datetime import datetime
-from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.schemas.pagination import PaginationResponseSchema
-
-
-class CommentSortOrder(StrEnum):
-    ASC = "asc"
-    DESC = "desc"
-
-
-class CommentListParams(BaseModel):
-    page: int = Field(default=1, ge=1, description="Page number.")
-    per_page: int = Field(
-        default=20,
-        ge=1,
-        le=100,
-        description="Number of comments per page.",
-    )
-    sort_order: CommentSortOrder = Field(
-        default=CommentSortOrder.DESC,
-        description="Sort direction based on comment creation time.",
-    )
-
-    model_config = ConfigDict(extra="forbid")
 
 
 class CommentContentSchema(BaseModel):
