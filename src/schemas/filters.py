@@ -76,8 +76,7 @@ class MovieFilterParams(PaginationParams):
         min_length=1,
         max_length=100,
         description=(
-            "Case-insensitive search by movie title, description, actor, "
-            "or director."
+            "Case-insensitive search by movie title, description, actor, or director."
         ),
     )
     years: list[int] | None = Field(

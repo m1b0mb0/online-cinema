@@ -50,9 +50,7 @@ async def create_user_with_headers(
         group,
         email,
     )
-    user = await db_session.scalar(
-        select(UserModel).where(UserModel.email == email)
-    )
+    user = await db_session.scalar(select(UserModel).where(UserModel.email == email))
     assert user is not None
     return user, headers
 
@@ -223,20 +221,14 @@ async def test_admin_can_view_cart_details_without_creating_missing_cart(
     assert detail["items_count"] == 1
     assert Decimal(detail["total_amount"]) == Decimal("19.99")
     assert detail["items"][0]["movie"]["uuid"] == str(movie.uuid)
-    assert detail["items"][0]["movie"]["genres"] == [
-        {"id": genre.id, "name": "Drama"}
-    ]
+    assert detail["items"][0]["movie"]["genres"] == [{"id": genre.id, "name": "Drama"}]
 
-    carts_before = await db_session.scalar(
-        select(func.count()).select_from(CartModel)
-    )
+    carts_before = await db_session.scalar(select(func.count()).select_from(CartModel))
     missing_response = await client.get(
         f"/admin/users/{user_without_cart.id}/cart/",
         headers=admin_headers,
     )
-    carts_after = await db_session.scalar(
-        select(func.count()).select_from(CartModel)
-    )
+    carts_after = await db_session.scalar(select(func.count()).select_from(CartModel))
 
     assert missing_response.status_code == 404
     assert missing_response.json()["detail"] == (

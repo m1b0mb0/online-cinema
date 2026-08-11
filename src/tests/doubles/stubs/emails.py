@@ -31,19 +31,11 @@ class StubEmailSender(EmailSenderInterface):
             {"email": email, "login_link": login_link}
         )
 
-    async def send_comment_reply_email(
-        self, email: str, comment_link: str
-    ) -> None:
-        self.comment_reply_emails.append(
-            {"email": email, "comment_link": comment_link}
-        )
+    async def send_comment_reply_email(self, email: str, comment_link: str) -> None:
+        self.comment_reply_emails.append({"email": email, "comment_link": comment_link})
 
-    async def send_comment_like_email(
-        self, email: str, comment_link: str
-    ) -> None:
-        self.comment_like_emails.append(
-            {"email": email, "comment_link": comment_link}
-        )
+    async def send_comment_like_email(self, email: str, comment_link: str) -> None:
+        self.comment_like_emails.append({"email": email, "comment_link": comment_link})
 
     async def send_payment_confirmation_email(
         self,

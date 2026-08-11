@@ -54,9 +54,7 @@ async def create_user_with_headers(
         UserGroupEnum.USER,
         email,
     )
-    user = await db_session.scalar(
-        select(UserModel).where(UserModel.email == email)
-    )
+    user = await db_session.scalar(select(UserModel).where(UserModel.email == email))
     assert user is not None
     return user, headers
 
@@ -161,18 +159,14 @@ async def test_create_checkout_persists_payment_and_uses_current_movie_prices(
     assert response_data["payment"]["external_payment_id"] == (
         "cs_test_checkout_session"
     )
-    assert response_data["checkout_url"] == (
-        "https://checkout.stripe.test/session"
-    )
+    assert response_data["checkout_url"] == ("https://checkout.stripe.test/session")
 
     db_session.expire_all()
     stored_payment = await db_session.scalar(
         select(PaymentModel)
         .where(PaymentModel.id == response_data["payment"]["id"])
         .options(
-            selectinload(PaymentModel.items).selectinload(
-                PaymentItemModel.order_item
-            )
+            selectinload(PaymentModel.items).selectinload(PaymentItemModel.order_item)
         )
     )
     assert stored_payment is not None
@@ -203,12 +197,11 @@ async def test_create_checkout_persists_payment_and_uses_current_movie_prices(
         "order_id": str(order_id),
         "user_id": str(user_id),
     }
-    assert stripe_params["payment_intent_data"]["metadata"] == (
-        stripe_params["metadata"]
+    assert (
+        stripe_params["payment_intent_data"]["metadata"] == (stripe_params["metadata"])
     )
     assert stripe_params["success_url"] == (
-        "https://cinema.test/payment-success"
-        "?session_id={CHECKOUT_SESSION_ID}"
+        "https://cinema.test/payment-success?session_id={CHECKOUT_SESSION_ID}"
     )
     assert stripe_options["idempotency_key"] == (
         f"payment-checkout-{stored_payment.id}"
@@ -317,9 +310,7 @@ async def test_create_checkout_rolls_back_when_stripe_fails(
     )
 
     assert response.status_code == 502
-    assert response.json()["detail"] == (
-        "Unable to create Stripe Checkout session."
-    )
+    assert response.json()["detail"] == ("Unable to create Stripe Checkout session.")
     payment_count = await db_session.scalar(
         select(func.count(PaymentModel.id)).where(PaymentModel.order_id == order_id)
     )
@@ -423,9 +414,7 @@ async def test_create_checkout_rejects_orders_that_cannot_be_paid(
     )
 
     assert response.status_code == 409
-    assert response.json()["detail"] == (
-        "Order cannot be paid in its current state."
-    )
+    assert response.json()["detail"] == ("Order cannot be paid in its current state.")
     assert stripe_client.checkout_sessions.calls == []
 
 
@@ -464,9 +453,7 @@ async def test_payment_history_and_detail_are_private_and_paginated(
     list_data = list_response.json()
     assert list_data["total_items"] == 2
     assert list_data["total_pages"] == 2
-    assert [payment["id"] for payment in list_data["payments"]] == [
-        second_payment.id
-    ]
+    assert [payment["id"] for payment in list_data["payments"]] == [second_payment.id]
 
     detail_response = await client.get(
         f"/theater/payments/{first_payment.id}/",
@@ -535,9 +522,7 @@ async def test_payment_confirmation_is_private_and_reflects_webhook_status(
     assert private_response.status_code == 404
     assert pending_response.status_code == 200
     assert pending_response.json()["confirmed"] is False
-    assert pending_response.json()["message"] == (
-        "Payment is still being processed."
-    )
+    assert pending_response.json()["message"] == ("Payment is still being processed.")
 
     stripe_client.checkout_sessions.session.payment_status = "paid"
 
@@ -549,9 +534,7 @@ async def test_payment_confirmation_is_private_and_reflects_webhook_status(
 
     assert confirmed_response.status_code == 200
     assert confirmed_response.json()["confirmed"] is True
-    assert confirmed_response.json()["message"] == (
-        "Payment confirmed successfully."
-    )
+    assert confirmed_response.json()["message"] == ("Payment confirmed successfully.")
     assert confirmed_response.json()["payment"]["status"] == "successful"
 
     duplicate_response = await client.get(
@@ -576,9 +559,7 @@ async def test_payment_confirmation_is_private_and_reflects_webhook_status(
             "order_id": order_id,
             "amount": "10.00",
             "currency": "USD",
-            "payment_link": (
-                f"https://cinema.test/theater/payments/{payment_id}/"
-            ),
+            "payment_link": (f"https://cinema.test/theater/payments/{payment_id}/"),
         }
     ]
 
@@ -674,9 +655,7 @@ async def test_checkout_webhooks_update_status_without_reversing_success(
             "order_id": order_id,
             "amount": "10.00",
             "currency": "USD",
-            "payment_link": (
-                f"https://cinema.test/theater/payments/{payment_id}/"
-            ),
+            "payment_link": (f"https://cinema.test/theater/payments/{payment_id}/"),
         }
     ]
 
@@ -853,6 +832,4 @@ async def test_webhook_rejects_invalid_stripe_signature(client):
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == (
-        "Webhook payload or signature is invalid."
-    )
+    assert response.json()["detail"] == ("Webhook payload or signature is invalid.")

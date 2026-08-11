@@ -1,0 +1,18 @@
+target-version = "py312"
+line-length = 88
+cache-dir = ".cache/ruff"
+extend-exclude = ["src/database/migrations"]
+force-exclude = true
+
+[lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]
+ignore = ["B008"]
+
+[lint.per-file-ignores]
+"**/__init__.py" = ["F401"]
+"src/tests/conftest.py" = ["E402"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

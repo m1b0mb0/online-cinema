@@ -20,7 +20,7 @@ from src.database.models.base import Base
 if TYPE_CHECKING:
     from src.database.models.accounts import UserModel
     from src.database.models.movies import MovieModel
-    from src.database.models.payments import PaymentModel, PaymentItemModel
+    from src.database.models.payments import PaymentItemModel, PaymentModel
 
 
 class OrderStatusEnum(StrEnum):

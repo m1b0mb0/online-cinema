@@ -38,9 +38,7 @@ async def create_user_with_headers(
         UserGroupEnum.USER,
         email,
     )
-    user = await db_session.scalar(
-        select(UserModel).where(UserModel.email == email)
-    )
+    user = await db_session.scalar(select(UserModel).where(UserModel.email == email))
     assert user is not None
     return user, headers
 
@@ -85,9 +83,7 @@ async def test_comment_author_is_notified_about_reply_from_another_user(
     assert email_sender_stub.comment_reply_emails == [
         {
             "email": author.email,
-            "comment_link": (
-                f"http://127.0.0.1:8000/theater/comments/{reply_uuid}/"
-            ),
+            "comment_link": (f"http://127.0.0.1:8000/theater/comments/{reply_uuid}/"),
         }
     ]
     linked_reply_response = await client.get(
@@ -158,9 +154,7 @@ async def test_comment_author_is_notified_only_when_comment_receives_like(
     assert email_sender_stub.comment_like_emails == [
         {
             "email": author.email,
-            "comment_link": (
-                f"http://127.0.0.1:8000/theater/comments/{comment_uuid}/"
-            ),
+            "comment_link": (f"http://127.0.0.1:8000/theater/comments/{comment_uuid}/"),
         }
     ]
 

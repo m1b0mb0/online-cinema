@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -18,12 +19,12 @@ from src.database import (
     get_db,
 )
 from src.schemas import CartItemResponseSchema, CartMovieSchema, CartResponseSchema
-from src.services import get_movie_by_uuid_or_404
 from src.security.dependencies import get_current_active_user
+from src.services import get_movie_by_uuid_or_404
 
 router = APIRouter()
 
-AUTH_RESPONSES = {
+AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Access token is missing or invalid."},
     403: {"description": "User account is not activated."},
 }
@@ -227,9 +228,7 @@ async def clear_current_user_cart(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     try:
-        await db.execute(
-            delete(CartItemModel).where(CartItemModel.cart_id == cart.id)
-        )
+        await db.execute(delete(CartItemModel).where(CartItemModel.cart_id == cart.id))
         await db.commit()
     except SQLAlchemyError:
         await db.rollback()

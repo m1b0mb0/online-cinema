@@ -1,50 +1,49 @@
 from datetime import datetime, timezone
-from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import EmailStr
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import (
-    get_jwt_auth_manager,
-    get_settings,
     BaseAppSettings,
     get_accounts_email_notificator,
-)
-from src.services import (
-    get_user_by_email,
-    build_account_link,
-    activate_user_account,
+    get_jwt_auth_manager,
+    get_settings,
 )
 from src.database import (
-    get_db,
-    UserModel,
-    UserProfileModel,
-    UserGroupModel,
-    UserGroupEnum,
     ActivationTokenModel,
     PasswordResetTokenModel,
     RefreshTokenModel,
+    UserGroupEnum,
+    UserGroupModel,
+    UserModel,
+    UserProfileModel,
+    get_db,
 )
 from src.exceptions import BaseSecurityError
-from src.security.dependencies import get_current_active_user
-from src.security.interfaces import JWTAuthManagerInterface
 from src.notifications import EmailSenderInterface
 from src.schemas.accounts import (
-    UserRegistrationRequestSchema,
-    UserRegistrationResponseSchema,
-    UserActivationRequestSchema,
+    ChangePasswordRequestSchema,
     MessageResponseSchema,
-    PasswordResetRequestSchema,
     PasswordResetCompleteRequestSchema,
+    PasswordResetRequestSchema,
+    TokenRefreshRequestSchema,
+    TokenRefreshResponseSchema,
+    UserActivationRequestSchema,
     UserLoginRequestSchema,
     UserLoginResponseSchema,
     UserLogoutRequestSchema,
-    TokenRefreshRequestSchema,
-    TokenRefreshResponseSchema,
-    ChangePasswordRequestSchema,
+    UserRegistrationRequestSchema,
+    UserRegistrationResponseSchema,
+)
+from src.security.dependencies import get_current_active_user
+from src.security.interfaces import JWTAuthManagerInterface
+from src.services import (
+    activate_user_account,
+    build_account_link,
+    get_user_by_email,
 )
 
 router = APIRouter()
@@ -397,7 +396,7 @@ async def reset_password(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email or token."
         )
 
-    expires_at = cast(datetime, password_token.expires_at).replace(tzinfo=timezone.utc)
+    expires_at = password_token.expires_at.replace(tzinfo=timezone.utc)
 
     if password_token.token != data.token or expires_at < datetime.now(timezone.utc):
         await db.delete(password_token)
@@ -410,12 +409,12 @@ async def reset_password(
         db_user.password = data.password
         await db.delete(password_token)
         await db.commit()
-    except SQLAlchemyError:
+    except SQLAlchemyError as error:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while resetting the password.",
-        )
+        ) from error
 
     login_link = build_account_link(settings, "/accounts/login/")
 
@@ -485,12 +484,12 @@ async def change_password(
     try:
         user.password = data.new_password
         await db.commit()
-    except SQLAlchemyError:
+    except SQLAlchemyError as error:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while changing the password.",
-        )
+        ) from error
 
     return MessageResponseSchema(message="Password changed successfully.")
 
@@ -559,12 +558,12 @@ async def login(
     try:
         db.add(refresh_token)
         await db.commit()
-    except SQLAlchemyError:
+    except SQLAlchemyError as error:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while processing the request.",
-        )
+        ) from error
 
     return UserLoginResponseSchema(
         access_token=jwt_access_token,
@@ -647,7 +646,7 @@ async def refresh_access_token(
     try:
         token_payload = jwt_manager.decode_refresh_token(token_data.refresh_token)
     except BaseSecurityError as error:
-        raise HTTPException(status_code=400, detail=str(error))
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
     refresh_token = await db.scalar(
         select(RefreshTokenModel).where(

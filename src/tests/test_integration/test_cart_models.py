@@ -20,9 +20,7 @@ pytestmark = pytest.mark.integration
 
 async def create_user(db_session, email: str) -> UserModel:
     group = await db_session.scalar(
-        select(UserGroupModel).where(
-            UserGroupModel.name == UserGroupEnum.USER
-        )
+        select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER)
     )
     assert group is not None
 
@@ -146,9 +144,7 @@ async def test_deleting_cart_removes_its_items(
     await db_session.delete(cart)
     await db_session.commit()
 
-    cart_count = await db_session.scalar(
-        select(func.count()).select_from(CartModel)
-    )
+    cart_count = await db_session.scalar(select(func.count()).select_from(CartModel))
     item_count = await db_session.scalar(
         select(func.count()).select_from(CartItemModel)
     )

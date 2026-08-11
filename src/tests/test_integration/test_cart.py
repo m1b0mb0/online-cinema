@@ -54,9 +54,7 @@ async def create_user_with_headers(
         UserGroupEnum.USER,
         email,
     )
-    user = await db_session.scalar(
-        select(UserModel).where(UserModel.email == email)
-    )
+    user = await db_session.scalar(select(UserModel).where(UserModel.email == email))
     assert user is not None
     return user, headers
 
@@ -160,12 +158,8 @@ async def test_user_can_add_view_remove_and_clear_cart(
     assert cleared_response.json()["id"] == stored_cart.id
     assert cleared_response.json()["items"] == []
     assert cleared_response.json()["items_count"] == 0
-    assert await db_session.scalar(
-        select(func.count()).select_from(CartModel)
-    ) == 1
-    assert await db_session.scalar(
-        select(func.count()).select_from(CartItemModel)
-    ) == 0
+    assert await db_session.scalar(select(func.count()).select_from(CartModel)) == 1
+    assert await db_session.scalar(select(func.count()).select_from(CartItemModel)) == 0
 
 
 @pytest.mark.asyncio
@@ -311,9 +305,10 @@ async def test_cart_rejects_purchased_movie_for_its_owner(
     assert purchased_response.json()["detail"] == (
         "Movie has already been purchased and cannot be added to the cart."
     )
-    assert await db_session.scalar(
-        select(CartModel).where(CartModel.user_id == owner.id)
-    ) is None
+    assert (
+        await db_session.scalar(select(CartModel).where(CartModel.user_id == owner.id))
+        is None
+    )
 
     canceled_response = await client.post(
         f"/theater/cart/items/{canceled_movie.uuid}/",
@@ -376,11 +371,14 @@ async def test_add_movie_recovers_when_another_request_creates_cart_first(
 
     assert response.status_code == 201
     assert response.json()["movie"]["uuid"] == str(movie.uuid)
-    assert await db_session.scalar(
-        select(func.count())
-        .select_from(CartModel)
-        .where(CartModel.user_id == user.id)
-    ) == 1
+    assert (
+        await db_session.scalar(
+            select(func.count())
+            .select_from(CartModel)
+            .where(CartModel.user_id == user.id)
+        )
+        == 1
+    )
     cart_item = await db_session.scalar(
         select(CartItemModel).where(
             CartItemModel.cart_id == existing_cart.id,

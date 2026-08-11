@@ -32,7 +32,8 @@ refunds, and administrative reporting.
 - Redis, Celery, and Celery Beat
 - FastAPI Mail and MailHog
 - Docker and Docker Compose
-- Pytest, pytest-asyncio, HTTPX, and SQLite
+- Pytest, pytest-asyncio, pytest-cov, HTTPX, and SQLite
+- Ruff, mypy, pre-commit, and GitHub Actions
 
 ## Project Structure
 
@@ -40,6 +41,12 @@ refunds, and administrative reporting.
 .
 |-- main.py                         # FastAPI application and routers
 |-- requirements.txt                # pip dependencies
+|-- requirements-dev.txt            # Local quality and test dependencies
+|-- .coveragerc                     # Application coverage settings
+|-- ruff.toml                       # Lint and formatting rules
+|-- mypy.ini                        # Static type-checking rules
+|-- .pre-commit-config.yaml         # Checks executed before a commit
+|-- .github/workflows/ci.yml        # GitHub Actions quality and test jobs
 |-- docker-compose.yml              # Local service orchestration
 |-- Dockerfile
 |-- alembic.ini
@@ -461,9 +468,11 @@ are skipped.
 
 ## Running Tests
 
-Create and activate a local virtual environment, install dependencies, and run:
+Create and activate a local virtual environment, install the development
+dependencies, and run:
 
 ```bash
+python -m pip install -r requirements-dev.txt
 python -m pytest
 ```
 
@@ -478,6 +487,47 @@ python -m pytest src/tests/test_integration/test_payments.py -q
 Tests set `ENVIRONMENT=testing` and use a fresh in-memory SQLite schema for each
 test. They do not modify the PostgreSQL database from `.env`. Email and Stripe
 operations are replaced with test doubles.
+
+To include a coverage report:
+
+```bash
+python -m pytest --cov=src --cov-report=term-missing
+```
+
+## Code Quality and CI
+
+Run the same quality checks locally that GitHub Actions runs for every pull
+request to `main` and every push to `main`:
+
+```bash
+python -m ruff check main.py src
+python -m ruff format --check main.py src
+python -m mypy main.py src
+```
+
+Apply safe lint fixes and formatting before committing:
+
+```bash
+python -m ruff check main.py src --fix
+python -m ruff format main.py src
+```
+
+Install the Git hook once in each local clone:
+
+```bash
+python -m pre_commit install
+```
+
+After installation, Ruff checks and formats staged Python files before each
+commit. Run the hooks against the entire repository at any time with:
+
+```bash
+python -m pre_commit run --all-files
+```
+
+The workflow in `.github/workflows/ci.yml` contains two independent jobs:
+`Code quality` runs Ruff and mypy, while `Tests` runs the complete test suite
+and generates terminal and XML coverage reports.
 
 ## Running Without Docker
 

@@ -1,6 +1,7 @@
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
+import stripe
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -17,37 +18,38 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-import stripe
+from stripe.params import RefundCreateParams
+from stripe.params.checkout import SessionCreateParams, SessionCreateParamsLineItem
 
 from src.config import get_email_notificator, get_settings, get_stripe_client
 from src.config.settings import BaseAppSettings
 from src.database import (
-    UserModel,
-    OrderModel,
     OrderItemModel,
+    OrderModel,
     OrderStatusEnum,
+    PaymentItemModel,
     PaymentModel,
     PaymentStatusEnum,
-    PaymentItemModel,
+    UserModel,
     get_db,
 )
+from src.notifications import EmailSenderInterface
 from src.schemas import (
+    PaginationParams,
     PaymentCheckoutResponseSchema,
     PaymentConfirmationResponseSchema,
-    PaginationParams,
     PaymentListResponseSchema,
     PaymentRefundRequestSchema,
     PaymentRefundResponseSchema,
     PaymentResponseSchema,
     PaymentWebhookResponseSchema,
 )
-from src.notifications import EmailSenderInterface
 from src.security.dependencies import get_current_active_user
 from src.utils import build_pagination
 
 router = APIRouter()
 
-AUTH_RESPONSES = {
+AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Access token is missing or invalid."},
     403: {"description": "User account is not activated."},
 }
@@ -59,8 +61,7 @@ AUTH_RESPONSES = {
     status_code=status.HTTP_201_CREATED,
     summary="Create Payment Checkout",
     description=(
-        "Create a pending payment for an owned order and return a Stripe "
-        "Checkout URL."
+        "Create a pending payment for an owned order and return a Stripe Checkout URL."
     ),
     response_description="Pending payment and Stripe Checkout URL.",
     responses={
@@ -130,7 +131,7 @@ async def create_payment_checkout(
         db.add(payment)
         await db.flush()
 
-        line_items = [
+        line_items: list[SessionCreateParamsLineItem] = [
             {
                 "price_data": {
                     "currency": settings.STRIPE_CURRENCY.lower(),
@@ -149,19 +150,20 @@ async def create_payment_checkout(
         success_url = settings.STRIPE_SUCCESS_URL
         if "{CHECKOUT_SESSION_ID}" not in success_url:
             separator = "&" if "?" in success_url else "?"
-            success_url = f"{success_url}{separator}" "session_id={CHECKOUT_SESSION_ID}"
+            success_url = f"{success_url}{separator}session_id={{CHECKOUT_SESSION_ID}}"
 
+        checkout_params: SessionCreateParams = {
+            "mode": "payment",
+            "customer_email": current_user.email,
+            "client_reference_id": str(payment.id),
+            "line_items": line_items,
+            "success_url": success_url,
+            "cancel_url": settings.STRIPE_CANCEL_URL,
+            "metadata": metadata,
+            "payment_intent_data": {"metadata": metadata},
+        }
         session = await stripe_client.v1.checkout.sessions.create_async(
-            {
-                "mode": "payment",
-                "customer_email": current_user.email,
-                "client_reference_id": str(payment.id),
-                "line_items": line_items,
-                "success_url": success_url,
-                "cancel_url": settings.STRIPE_CANCEL_URL,
-                "metadata": metadata,
-                "payment_intent_data": {"metadata": metadata},
-            },
+            checkout_params,
             {
                 "idempotency_key": f"payment-checkout-{payment.id}",
             },
@@ -217,11 +219,13 @@ async def get_current_user_payments(
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_active_user),
 ) -> PaymentListResponseSchema:
-    total_items = await db.scalar(
-        select(func.count(PaymentModel.id)).where(
-            PaymentModel.user_id == current_user.id
+    total_items = (
+        await db.scalar(
+            select(func.count(PaymentModel.id)).where(
+                PaymentModel.user_id == current_user.id
+            )
         )
-    )
+    ) or 0
     offset = (params.page - 1) * params.per_page
 
     statement = (
@@ -322,10 +326,8 @@ async def get_payment_confirmation(
         PaymentStatusEnum.CANCELED,
     }:
         try:
-            checkout_session = (
-                await stripe_client.v1.checkout.sessions.retrieve_async(
-                    session_id
-                )
+            checkout_session = await stripe_client.v1.checkout.sessions.retrieve_async(
+                session_id
             )
         except stripe.StripeError as error:
             await db.rollback()
@@ -334,9 +336,12 @@ async def get_payment_confirmation(
                 detail="Unable to verify Stripe Checkout session.",
             ) from error
 
-        metadata = checkout_session.metadata or {}
-        if isinstance(metadata, stripe.StripeObject):
-            metadata = metadata.to_dict()
+        raw_metadata = checkout_session.metadata
+        metadata: dict[str, str] = (
+            raw_metadata.to_dict()
+            if isinstance(raw_metadata, stripe.StripeObject)
+            else dict(raw_metadata or {})
+        )
 
         if (
             checkout_session.id != payment.external_payment_id
@@ -357,8 +362,8 @@ async def get_payment_confirmation(
             expected_amount = int(payment.amount * Decimal("100"))
             if (
                 checkout_session.amount_total != expected_amount
-                or checkout_session.currency.lower()
-                != settings.STRIPE_CURRENCY.lower()
+                or checkout_session.currency is None
+                or checkout_session.currency.lower() != settings.STRIPE_CURRENCY.lower()
             ):
                 await db.rollback()
                 raise HTTPException(
@@ -378,8 +383,7 @@ async def get_payment_confirmation(
 
     if should_send_confirmation:
         payment_link = (
-            f"{settings.APP_BASE_URL.rstrip('/')}"
-            f"/theater/payments/{payment.id}/"
+            f"{settings.APP_BASE_URL.rstrip('/')}/theater/payments/{payment.id}/"
         )
         background_tasks.add_task(
             email_sender.send_payment_confirmation_email,
@@ -468,13 +472,19 @@ async def handle_stripe_webhook(
         return PaymentWebhookResponseSchema(received=True)
 
     stripe_object = event.data.object
-    metadata = stripe_object.metadata or {}
-    if isinstance(metadata, stripe.StripeObject):
-        metadata = metadata.to_dict()
+    raw_metadata = stripe_object.metadata
+    metadata: dict[str, str] = (
+        raw_metadata.to_dict()
+        if isinstance(raw_metadata, stripe.StripeObject)
+        else dict(raw_metadata or {})
+    )
 
+    raw_payment_id = metadata.get("payment_id")
+    if raw_payment_id is None:
+        return PaymentWebhookResponseSchema(received=True)
     try:
-        payment_id = int(metadata.get("payment_id"))
-    except (TypeError, ValueError):
+        payment_id = int(raw_payment_id)
+    except ValueError:
         return PaymentWebhookResponseSchema(received=True)
 
     row = (
@@ -554,7 +564,7 @@ async def handle_stripe_webhook(
 
     if should_send_confirmation:
         payment_link = (
-            f"{settings.APP_BASE_URL.rstrip('/')}" f"/theater/payments/{payment.id}/"
+            f"{settings.APP_BASE_URL.rstrip('/')}/theater/payments/{payment.id}/"
         )
         background_tasks.add_task(
             email_sender.send_payment_confirmation_email,
@@ -675,9 +685,12 @@ async def request_payment_refund(
             payment.external_payment_id
         )
 
-        session_metadata = checkout_session.metadata or {}
-        if isinstance(session_metadata, stripe.StripeObject):
-            session_metadata = session_metadata.to_dict()
+        raw_session_metadata = checkout_session.metadata
+        session_metadata: dict[str, str] = (
+            raw_session_metadata.to_dict()
+            if isinstance(raw_session_metadata, stripe.StripeObject)
+            else dict(raw_session_metadata or {})
+        )
 
         if (
             checkout_session.id != payment.external_payment_id
@@ -691,9 +704,12 @@ async def request_payment_refund(
             )
 
         payment_intent = checkout_session.payment_intent
-        payment_intent_id = (
-            payment_intent.id if hasattr(payment_intent, "id") else payment_intent
-        )
+        if isinstance(payment_intent, str):
+            payment_intent_id = payment_intent
+        elif payment_intent is not None:
+            payment_intent_id = payment_intent.id
+        else:
+            payment_intent_id = None
 
         if not payment_intent_id:
             raise HTTPException(
@@ -701,17 +717,18 @@ async def request_payment_refund(
                 detail="Stripe PaymentIntent is missing.",
             )
 
-        refund = await stripe_client.v1.refunds.create_async(
-            {
-                "payment_intent": payment_intent_id,
-                "reason": "requested_by_customer",
-                "metadata": {
-                    "payment_id": str(payment.id),
-                    "order_id": str(payment.order_id),
-                    "user_id": str(current_user.id),
-                    "user_reason": refund_data.reason if refund_data else "",
-                },
+        refund_params: RefundCreateParams = {
+            "payment_intent": payment_intent_id,
+            "reason": "requested_by_customer",
+            "metadata": {
+                "payment_id": str(payment.id),
+                "order_id": str(payment.order_id),
+                "user_id": str(current_user.id),
+                "user_reason": (refund_data.reason or "") if refund_data else "",
             },
+        }
+        refund = await stripe_client.v1.refunds.create_async(
+            refund_params,
             {
                 "idempotency_key": f"payment-refund-{payment.id}",
             },

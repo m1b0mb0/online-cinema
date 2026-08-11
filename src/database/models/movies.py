@@ -1,8 +1,7 @@
-from uuid import UUID, uuid4
 from decimal import Decimal
 from typing import TYPE_CHECKING
+from uuid import UUID, uuid4
 
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import (
     CheckConstraint,
     Column,
@@ -16,16 +15,17 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
 )
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.models.base import Base
 
 if TYPE_CHECKING:
+    from src.database.models.cart import CartItemModel
     from src.database.models.comments import CommentModel
     from src.database.models.favorites import FavoriteModel
-    from src.database.models.reactions import MovieReactionModel
-    from src.database.models.ratings import MovieRatingModel
-    from src.database.models.cart import CartItemModel
     from src.database.models.order import OrderItemModel
+    from src.database.models.ratings import MovieRatingModel
+    from src.database.models.reactions import MovieReactionModel
 
 MovieStarsModel = Table(
     "movie_stars",

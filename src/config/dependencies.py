@@ -1,22 +1,22 @@
 from functools import lru_cache
 
-from fastapi import Depends
 import stripe
+from fastapi import Depends
 
-from src.config.settings import Settings, BaseAppSettings
+from src.config.settings import Settings
+from src.notifications.emails import EmailSender
+from src.notifications.interfaces import EmailSenderInterface
 from src.security.interfaces import JWTAuthManagerInterface
 from src.security.token_manager import JWTAuthManager
-from src.notifications.interfaces import EmailSenderInterface
-from src.notifications.emails import EmailSender
 
 
 @lru_cache
-def get_settings() -> BaseAppSettings:
+def get_settings() -> Settings:
     return Settings()
 
 
 def get_jwt_auth_manager(
-    settings: BaseAppSettings = Depends(get_settings),
+    settings: Settings = Depends(get_settings),
 ) -> JWTAuthManagerInterface:
     return JWTAuthManager(
         secret_key_access=settings.SECRET_KEY_ACCESS,
@@ -26,7 +26,7 @@ def get_jwt_auth_manager(
 
 
 def get_email_notificator(
-    settings: BaseAppSettings = Depends(get_settings),
+    settings: Settings = Depends(get_settings),
 ) -> EmailSenderInterface:
     return EmailSender(
         hostname=settings.EMAIL_HOST,
@@ -51,7 +51,7 @@ get_accounts_email_notificator = get_email_notificator
 
 
 def get_stripe_client(
-    settings: BaseAppSettings = Depends(get_settings),
+    settings: Settings = Depends(get_settings),
 ) -> stripe.StripeClient:
     return stripe.StripeClient(
         settings.STRIPE_SECRET_KEY,

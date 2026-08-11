@@ -1,5 +1,5 @@
-from urllib.parse import parse_qs, urlparse
 from decimal import Decimal
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -47,10 +47,7 @@ async def test_catalog_entity_lists_and_details_are_public(client, db_session):
         "per_page": ["1"],
         "search": ["a"],
     }
-    assert {
-        key: genres_data[key]
-        for key in ("total_pages", "total_items")
-    } == {
+    assert {key: genres_data[key] for key in ("total_pages", "total_items")} == {
         "total_pages": 2,
         "total_items": 2,
     }
@@ -133,8 +130,7 @@ async def test_genre_list_includes_movie_counts(client, db_session):
 
     assert response.status_code == 200
     counts_by_genre = {
-        genre["name"]: genre["movie_count"]
-        for genre in response.json()["genres"]
+        genre["name"]: genre["movie_count"] for genre in response.json()["genres"]
     }
     assert counts_by_genre == {
         "Action": 1,

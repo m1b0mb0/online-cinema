@@ -1,14 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from jose import jwt, JWTError, ExpiredSignatureError
+from jose import ExpiredSignatureError, JWTError, jwt
 
-from src.exceptions import TokenExpiredError, InvalidTokenError
+from src.exceptions import InvalidTokenError, TokenExpiredError
 from src.security.interfaces import JWTAuthManagerInterface
 
 
 class JWTAuthManager(JWTAuthManagerInterface):
-
     _ACCESS_KEY_TIMEDELTA_MINUTES = 60
     _REFRESH_KEY_TIMEDELTA_MINUTES = 60 * 24 * 7
 
@@ -49,17 +48,17 @@ class JWTAuthManager(JWTAuthManagerInterface):
             return jwt.decode(
                 token, self._secret_key_access, algorithms=[self._algorithm]
             )
-        except ExpiredSignatureError:
-            raise TokenExpiredError
-        except JWTError:
-            raise InvalidTokenError
+        except ExpiredSignatureError as error:
+            raise TokenExpiredError from error
+        except JWTError as error:
+            raise InvalidTokenError from error
 
     def decode_refresh_token(self, token: str) -> dict:
         try:
             return jwt.decode(
                 token, self._secret_key_refresh, algorithms=[self._algorithm]
             )
-        except ExpiredSignatureError:
-            raise TokenExpiredError
-        except JWTError:
-            raise InvalidTokenError
+        except ExpiredSignatureError as error:
+            raise TokenExpiredError from error
+        except JWTError as error:
+            raise InvalidTokenError from error

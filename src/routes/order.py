@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from sqlalchemy import delete, func, select
@@ -8,20 +8,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.database import (
-    UserModel,
-    CartModel,
     CartItemModel,
-    OrderModel,
+    CartModel,
     OrderItemModel,
+    OrderModel,
     OrderStatusEnum,
+    UserModel,
     get_db,
 )
 from src.schemas import (
+    ExcludedOrderMovieSchema,
     OrderCreateResponseSchema,
+    OrderExclusionReasonEnum,
     OrderListResponseSchema,
     OrderResponseSchema,
-    ExcludedOrderMovieSchema,
-    OrderExclusionReasonEnum,
     PaginationParams,
 )
 from src.security.dependencies import get_current_active_user
@@ -29,7 +29,7 @@ from src.utils import build_pagination
 
 router = APIRouter()
 
-AUTH_RESPONSES = {
+AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Access token is missing or invalid."},
     403: {"description": "User account is not activated."},
 }
@@ -41,8 +41,7 @@ AUTH_RESPONSES = {
     status_code=status.HTTP_201_CREATED,
     summary="Create Order From Cart",
     description=(
-        "Create a pending order from every eligible movie in the current "
-        "user's cart."
+        "Create a pending order from every eligible movie in the current user's cart."
     ),
     response_description="Created pending order with price snapshots.",
     responses={
@@ -171,9 +170,13 @@ async def get_current_user_orders(
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_active_user),
 ) -> OrderListResponseSchema:
-    total_items = await db.scalar(
-        select(func.count(OrderModel.id)).where(OrderModel.user_id == current_user.id)
-    )
+    total_items = (
+        await db.scalar(
+            select(func.count(OrderModel.id)).where(
+                OrderModel.user_id == current_user.id
+            )
+        )
+    ) or 0
 
     offset = (params.page - 1) * params.per_page
     statement = (

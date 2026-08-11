@@ -1,4 +1,4 @@
-from typing import Annotated, TypeVar
+from typing import Annotated, Any, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.exc import IntegrityError
@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import GenreModel, StarModel, get_db
 from src.schemas import (
-    ActorRequestSchema,
     ActorListResponseSchema,
+    ActorRequestSchema,
     CatalogEntityListParams,
     GenreListResponseSchema,
     GenreRequestSchema,
@@ -17,18 +17,18 @@ from src.schemas import (
 )
 from src.security.dependencies import get_moderator_or_admin_user
 from src.services import (
+    get_genres_with_movie_counts,
     get_named_model_by_id,
     get_named_model_by_name,
-    get_genres_with_movie_counts,
     get_named_models_page,
 )
 from src.utils import build_pagination
 
 router = APIRouter()
 
-ModelType = TypeVar("ModelType")
+ModelType = TypeVar("ModelType", GenreModel, StarModel)
 
-AUTH_RESPONSES = {
+AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "A valid access token is required."},
     403: {"description": "Moderator or administrator privileges are required."},
 }
@@ -68,12 +68,12 @@ async def _create_entity(
     try:
         await db.commit()
         await db.refresh(item)
-    except IntegrityError:
+    except IntegrityError as error:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"{entity_name} with this name already exists.",
-        )
+        ) from error
 
     return item
 
@@ -99,12 +99,12 @@ async def _update_entity(
     try:
         await db.commit()
         await db.refresh(item)
-    except IntegrityError:
+    except IntegrityError as error:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"{entity_name} with this name already exists.",
-        )
+        ) from error
 
     return item
 
@@ -170,7 +170,8 @@ async def create_genre(
     data: GenreRequestSchema,
     db: AsyncSession = Depends(get_db),
 ) -> GenreSchema:
-    return await _create_entity(db, GenreModel, data, "Genre")
+    genre = await _create_entity(db, GenreModel, data, "Genre")
+    return GenreSchema.model_validate(genre)
 
 
 @router.get(
@@ -185,7 +186,8 @@ async def get_genre(
     genre_id: int,
     db: AsyncSession = Depends(get_db),
 ) -> GenreSchema:
-    return await _get_entity_or_404(db, GenreModel, genre_id, "Genre")
+    genre = await _get_entity_or_404(db, GenreModel, genre_id, "Genre")
+    return GenreSchema.model_validate(genre)
 
 
 @router.patch(
@@ -206,7 +208,8 @@ async def update_genre(
     data: GenreRequestSchema,
     db: AsyncSession = Depends(get_db),
 ) -> GenreSchema:
-    return await _update_entity(db, GenreModel, genre_id, data, "Genre")
+    genre = await _update_entity(db, GenreModel, genre_id, data, "Genre")
+    return GenreSchema.model_validate(genre)
 
 
 @router.delete(
@@ -276,7 +279,8 @@ async def create_actor(
     data: ActorRequestSchema,
     db: AsyncSession = Depends(get_db),
 ) -> StarSchema:
-    return await _create_entity(db, StarModel, data, "Actor")
+    actor = await _create_entity(db, StarModel, data, "Actor")
+    return StarSchema.model_validate(actor)
 
 
 @router.get(
@@ -291,7 +295,8 @@ async def get_actor(
     actor_id: int,
     db: AsyncSession = Depends(get_db),
 ) -> StarSchema:
-    return await _get_entity_or_404(db, StarModel, actor_id, "Actor")
+    actor = await _get_entity_or_404(db, StarModel, actor_id, "Actor")
+    return StarSchema.model_validate(actor)
 
 
 @router.patch(
@@ -312,7 +317,8 @@ async def update_actor(
     data: ActorRequestSchema,
     db: AsyncSession = Depends(get_db),
 ) -> StarSchema:
-    return await _update_entity(db, StarModel, actor_id, data, "Actor")
+    actor = await _update_entity(db, StarModel, actor_id, data, "Actor")
+    return StarSchema.model_validate(actor)
 
 
 @router.delete(

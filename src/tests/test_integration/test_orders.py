@@ -48,9 +48,7 @@ async def create_user_with_headers(
         UserGroupEnum.USER,
         email,
     )
-    user = await db_session.scalar(
-        select(UserModel).where(UserModel.email == email)
-    )
+    user = await db_session.scalar(select(UserModel).where(UserModel.email == email))
     assert user is not None
     return user, headers
 
@@ -90,9 +88,7 @@ async def test_create_order_excludes_purchased_and_pending_movies(
     purchased_movie = build_movie("Purchased Order Movie", certification, "11.00")
     pending_movie = build_movie("Pending Order Movie", certification, "12.00")
     canceled_movie = build_movie("Canceled Order Movie", certification, "13.00")
-    db_session.add_all(
-        [eligible_movie, purchased_movie, pending_movie, canceled_movie]
-    )
+    db_session.add_all([eligible_movie, purchased_movie, pending_movie, canceled_movie])
     await db_session.flush()
 
     paid_order = build_order(user.id, purchased_movie, OrderStatusEnum.PAID)
@@ -142,9 +138,7 @@ async def test_create_order_excludes_purchased_and_pending_movies(
         .options(selectinload(OrderModel.items))
     )
     assert created_order is not None
-    assert {
-        item.movie_id: item.price_at_order for item in created_order.items
-    } == {
+    assert {item.movie_id: item.price_at_order for item in created_order.items} == {
         eligible_movie.id: Decimal("10.00"),
         canceled_movie.id: Decimal("13.00"),
     }
@@ -198,9 +192,7 @@ async def test_order_creation_rejects_empty_or_fully_excluded_cart(
     )
 
     remaining_item_count = await db_session.scalar(
-        select(func.count(CartItemModel.id)).where(
-            CartItemModel.cart_id == cart.id
-        )
+        select(func.count(CartItemModel.id)).where(CartItemModel.cart_id == cart.id)
     )
     assert remaining_item_count == 1
 
@@ -262,9 +254,9 @@ async def test_order_history_and_details_are_private_and_paginated(
         headers=owner_headers,
     )
     assert second_page_response.status_code == 200
-    assert [
-        order["id"] for order in second_page_response.json()["orders"]
-    ] == [owner_orders[0].id]
+    assert [order["id"] for order in second_page_response.json()["orders"]] == [
+        owner_orders[0].id
+    ]
 
     detail_response = await client.get(
         f"/theater/orders/{owner_orders[0].id}/",

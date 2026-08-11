@@ -63,9 +63,7 @@ async def create_user_with_headers(
         group,
         email,
     )
-    user = await db_session.scalar(
-        select(UserModel).where(UserModel.email == email)
-    )
+    user = await db_session.scalar(select(UserModel).where(UserModel.email == email))
     assert user is not None
     return user, headers
 
@@ -235,9 +233,7 @@ async def test_admin_can_combine_user_status_and_date_filters(
     response_data = response.json()
     assert response_data["total_items"] == 2
     assert response_data["total_pages"] == 2
-    assert [order["id"] for order in response_data["orders"]] == [
-        matching_orders[1].id
-    ]
+    assert [order["id"] for order in response_data["orders"]] == [matching_orders[1].id]
     next_page_query = parse_qs(urlparse(response_data["next_page"]).query)
     assert next_page_query == {
         "user_id": [str(first_user.id)],

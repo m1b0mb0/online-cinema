@@ -128,9 +128,7 @@ async def test_get_movie_list_applies_combined_filters(client, db_session):
     assert response.status_code == 200
     response_data = response.json()
     assert response_data["total_items"] == 1
-    assert [movie["name"] for movie in response_data["movies"]] == [
-        "Matching Movie"
-    ]
+    assert [movie["name"] for movie in response_data["movies"]] == ["Matching Movie"]
 
 
 @pytest.mark.asyncio
@@ -167,9 +165,7 @@ async def test_movie_search_includes_title_description_actor_and_director(
             params={"search": search},
         )
         assert response.status_code == 200
-        assert [movie["name"] for movie in response.json()["movies"]] == [
-            expected_name
-        ]
+        assert [movie["name"] for movie in response.json()["movies"]] == [expected_name]
 
 
 @pytest.mark.asyncio
@@ -285,9 +281,7 @@ async def test_get_movie_details_and_uuid_validation(client, db_session):
     assert response_data["certification"]["name"] == "PG-13"
     assert [item["name"] for item in response_data["genres"]] == ["Drama"]
     assert [item["name"] for item in response_data["stars"]] == ["Example Actor"]
-    assert [item["name"] for item in response_data["directors"]] == [
-        "Example Director"
-    ]
+    assert [item["name"] for item in response_data["directors"]] == ["Example Director"]
 
     not_found_response = await client.get(f"/theater/movies/{uuid4()}/")
     invalid_uuid_response = await client.get("/theater/movies/not-a-uuid/")
@@ -351,9 +345,7 @@ async def test_moderator_can_create_update_and_delete_movie(
     assert updated_movie["name"] == "Updated Movie"
     assert updated_movie["price"] == "19.99"
     assert updated_movie["certification"]["name"] == "R"
-    assert [item["name"] for item in updated_movie["stars"]] == [
-        "Replacement Actor"
-    ]
+    assert [item["name"] for item in updated_movie["stars"]] == ["Replacement Actor"]
     assert [item["name"] for item in updated_movie["genres"]] == ["Thriller"]
     assert [item["name"] for item in updated_movie["directors"]] == [
         "Replacement Director"

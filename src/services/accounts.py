@@ -1,17 +1,16 @@
 from datetime import datetime, timezone
-from typing import cast
 from urllib.parse import urlencode
 
-from fastapi import status, HTTPException, BackgroundTasks
+from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import BaseAppSettings
-from src.database import UserModel, ActivationTokenModel
+from src.database import ActivationTokenModel, UserModel
 from src.notifications import EmailSenderInterface
 from src.schemas.accounts import (
-    UserActivationRequestSchema,
     MessageResponseSchema,
+    UserActivationRequestSchema,
 )
 
 
@@ -61,9 +60,7 @@ async def activate_user_account(
             detail="Invalid or expired activation token.",
         )
 
-    expires_at = cast(datetime, activation_token.expires_at).replace(
-        tzinfo=timezone.utc
-    )
+    expires_at = activation_token.expires_at.replace(tzinfo=timezone.utc)
 
     if expires_at < datetime.now(timezone.utc):
         raise HTTPException(

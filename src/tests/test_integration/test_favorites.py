@@ -53,9 +53,7 @@ async def create_user_with_headers(
         UserGroupEnum.USER,
         email,
     )
-    user = await db_session.scalar(
-        select(UserModel).where(UserModel.email == email)
-    )
+    user = await db_session.scalar(select(UserModel).where(UserModel.email == email))
     assert user is not None
     return user, headers
 
@@ -108,9 +106,9 @@ async def test_user_can_add_list_and_remove_favorite(
     )
     assert list_response.status_code == 200
     assert list_response.json()["total_items"] == 1
-    assert [
-        item["uuid"] for item in list_response.json()["movies"]
-    ] == [str(movie.uuid)]
+    assert [item["uuid"] for item in list_response.json()["movies"]] == [
+        str(movie.uuid)
+    ]
 
     delete_response = await client.delete(
         f"/theater/favorites/{movie.uuid}/",
@@ -187,9 +185,7 @@ async def test_favorites_support_catalog_filters_sorting_and_pagination(
         price="20.00",
         genres=[drama],
     )
-    db_session.add_all(
-        [alpha, bravo, filtered_out, other_users_movie]
-    )
+    db_session.add_all([alpha, bravo, filtered_out, other_users_movie])
     await db_session.flush()
     db_session.add_all(
         [
@@ -226,9 +222,7 @@ async def test_favorites_support_catalog_filters_sorting_and_pagination(
     first_page = first_response.json()
     assert first_page["total_items"] == 2
     assert first_page["total_pages"] == 2
-    assert [movie["name"] for movie in first_page["movies"]] == [
-        "Alpha Favorite"
-    ]
+    assert [movie["name"] for movie in first_page["movies"]] == ["Alpha Favorite"]
     assert first_page["prev_page"] is None
     assert first_page["next_page"] is not None
 
@@ -242,9 +236,9 @@ async def test_favorites_support_catalog_filters_sorting_and_pagination(
         headers=headers,
     )
     assert second_response.status_code == 200
-    assert [
-        movie["name"] for movie in second_response.json()["movies"]
-    ] == ["Bravo Favorite"]
+    assert [movie["name"] for movie in second_response.json()["movies"]] == [
+        "Bravo Favorite"
+    ]
 
 
 @pytest.mark.asyncio
@@ -325,6 +319,4 @@ async def test_add_favorite_returns_404_for_unknown_movie(
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == (
-        "Movie with the given UUID was not found."
-    )
+    assert response.json()["detail"] == ("Movie with the given UUID was not found.")

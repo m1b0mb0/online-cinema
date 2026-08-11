@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db_contextmanager
-from src.database.models.accounts import UserGroupModel, UserGroupEnum
+from src.database.models.accounts import UserGroupEnum, UserGroupModel
 from src.database.models.movies import (
     CertificationModel,
     DirectorModel,
@@ -106,9 +106,7 @@ def _parse_list_field(
         )
 
     return list(
-        dict.fromkeys(
-            str(item).strip() for item in parsed_value if str(item).strip()
-        )
+        dict.fromkeys(str(item).strip() for item in parsed_value if str(item).strip())
     )
 
 
@@ -151,25 +149,17 @@ def _read_movie_seed_data(
 
         movies = []
         for line_number, row in enumerate(reader, start=2):
-            description_words = _parse_list_field(
-                row, "Description", line_number
-            )
+            description_words = _parse_list_field(row, "Description", line_number)
             certification = (row.get("Certification") or "").strip()
 
             try:
                 movie = MovieSeedData(
                     name=_get_required_value(row, "Movie Name", line_number),
-                    year=int(
-                        _get_required_value(row, "Year of Release", line_number)
-                    ),
+                    year=int(_get_required_value(row, "Year of Release", line_number)),
                     time=int(
-                        _get_required_value(
-                            row, "Run Time in minutes", line_number
-                        )
+                        _get_required_value(row, "Run Time in minutes", line_number)
                     ),
-                    imdb=float(
-                        _get_required_value(row, "Movie Rating", line_number)
-                    ),
+                    imdb=float(_get_required_value(row, "Movie Rating", line_number)),
                     votes=int(_get_required_value(row, "Votes", line_number)),
                     meta_score=_parse_optional_float(row.get("MetaScore")),
                     gross=_parse_optional_float(row.get("Gross")),
@@ -242,9 +232,7 @@ async def _populate_movies(
     ]
 
     if not pending_movies:
-        print(
-            f"Movie catalog is already populated. Skipped {len(movie_data)} movies."
-        )
+        print(f"Movie catalog is already populated. Skipped {len(movie_data)} movies.")
         return
 
     certifications = {
@@ -258,8 +246,7 @@ async def _populate_movies(
         item.name: item for item in (await session.scalars(select(GenreModel))).all()
     }
     directors = {
-        item.name: item
-        for item in (await session.scalars(select(DirectorModel))).all()
+        item.name: item for item in (await session.scalars(select(DirectorModel))).all()
     }
 
     created = 0
@@ -301,8 +288,7 @@ async def _populate_movies(
 
     skipped = len(movie_data) - created
     print(
-        f"Movie catalog populated successfully: {created} created, "
-        f"{skipped} skipped."
+        f"Movie catalog populated successfully: {created} created, {skipped} skipped."
     )
 
 
