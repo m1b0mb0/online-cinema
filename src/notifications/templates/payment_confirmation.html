@@ -1,0 +1,28 @@
+<html lang="en">
+<head>
+  <title>Payment Confirmed</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif;">
+<div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; max-width: 480px;
+            margin: 40px auto; background-color: #ffffff; color: #333333;">
+  <h2 style="color: #2e7d32; text-align: center; margin: 0 0 20px; font-size: 24px;">
+    Payment Confirmed
+  </h2>
+  <p style="margin: 10px 0; line-height: 1.6; font-size: 16px;">
+    Your payment for order <strong>#{{ order_id }}</strong> was successful.
+  </p>
+  <p style="margin: 10px 0; line-height: 1.6; font-size: 16px;">
+    Amount paid: <strong>{{ amount }} {{ currency }}</strong>
+  </p>
+  <p style="margin: 20px 0; text-align: center;">
+    <a href="{{ payment_link }}" style="display: inline-block; background-color: #2e7d32; color: #ffffff;
+            text-decoration: none; font-size: 16px; padding: 10px 20px; border-radius: 4px;">
+      View Payment
+    </a>
+  </p>
+  <p style="margin: 20px 0 0; color: #666666; font-size: 14px;">
+    The Online Cinema team
+  </p>
+</div>
+</body>
+</html>

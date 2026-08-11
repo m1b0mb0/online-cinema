@@ -55,6 +55,24 @@ services:
     networks:
       - cinema_network
 
+  stripe_cli:
+    image: stripe/stripe-cli:v1.45.2
+    container_name: stripe_cli_cinema
+    restart: unless-stopped
+    command:
+      - listen
+      - --api-key
+      - ${STRIPE_SECRET_KEY}
+      - --events
+      - checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,checkout.session.expired,refund.created,refund.updated,refund.failed
+      - --forward-to
+      - http://web:8000/theater/payments/webhook/
+    depends_on:
+      web:
+        condition: service_started
+    networks:
+      - cinema_network
+
   migrator:
     build: .
     container_name: alembic_migrator_cinema

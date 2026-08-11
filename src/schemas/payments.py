@@ -49,6 +49,12 @@ class PaymentCheckoutResponseSchema(BaseModel):
     checkout_url: AnyHttpUrl
 
 
+class PaymentConfirmationResponseSchema(BaseModel):
+    confirmed: bool
+    message: str
+    payment: PaymentResponseSchema
+
+
 class PaymentListParams(BaseModel):
     page: int = Field(default=1, ge=1, description="Page number.")
     per_page: int = Field(

@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Body,
     Depends,
     Header,
@@ -18,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 import stripe
 
-from src.config import get_settings, get_stripe_client
+from src.config import get_email_notificator, get_settings, get_stripe_client
 from src.config.settings import BaseAppSettings
 from src.database import (
     UserModel,
@@ -32,6 +33,7 @@ from src.database import (
 )
 from src.schemas import (
     PaymentCheckoutResponseSchema,
+    PaymentConfirmationResponseSchema,
     PaymentListParams,
     PaymentListResponseSchema,
     PaymentRefundRequestSchema,
@@ -39,6 +41,7 @@ from src.schemas import (
     PaymentResponseSchema,
     PaymentWebhookResponseSchema,
 )
+from src.notifications import EmailSenderInterface
 from src.security.dependencies import get_current_active_user
 from src.utils import build_pagination
 
@@ -143,6 +146,10 @@ async def create_payment_checkout(
             "order_id": str(order.id),
             "user_id": str(current_user.id),
         }
+        success_url = settings.STRIPE_SUCCESS_URL
+        if "{CHECKOUT_SESSION_ID}" not in success_url:
+            separator = "&" if "?" in success_url else "?"
+            success_url = f"{success_url}{separator}" "session_id={CHECKOUT_SESSION_ID}"
 
         session = await stripe_client.v1.checkout.sessions.create_async(
             {
@@ -150,7 +157,7 @@ async def create_payment_checkout(
                 "customer_email": current_user.email,
                 "client_reference_id": str(payment.id),
                 "line_items": line_items,
-                "success_url": settings.STRIPE_SUCCESS_URL,
+                "success_url": success_url,
                 "cancel_url": settings.STRIPE_CANCEL_URL,
                 "metadata": metadata,
                 "payment_intent_data": {"metadata": metadata},
@@ -259,6 +266,153 @@ async def get_current_user_payments(
     )
 
 
+@router.get(
+    "/payments/confirmation/",
+    response_model=PaymentConfirmationResponseSchema,
+    summary="Get Payment Confirmation",
+    description=(
+        "Return the current payment status for a Stripe Checkout session. "
+        "The website can call this endpoint after the Stripe redirect."
+    ),
+    response_description="Website payment confirmation state.",
+    responses={
+        **AUTH_RESPONSES,
+        404: {"description": "Payment was not found."},
+        409: {"description": "Stripe Checkout session does not match."},
+        502: {"description": "Stripe Checkout session could not be verified."},
+    },
+)
+async def get_payment_confirmation(
+    background_tasks: BackgroundTasks,
+    session_id: str = Query(
+        min_length=1,
+        max_length=255,
+        description="Stripe Checkout Session identifier from the success URL.",
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_active_user),
+    stripe_client: stripe.StripeClient = Depends(get_stripe_client),
+    settings: BaseAppSettings = Depends(get_settings),
+    email_sender: EmailSenderInterface = Depends(get_email_notificator),
+) -> PaymentConfirmationResponseSchema:
+    payment = await db.scalar(
+        select(PaymentModel)
+        .where(
+            PaymentModel.external_payment_id == session_id,
+            PaymentModel.user_id == current_user.id,
+        )
+        .options(
+            selectinload(PaymentModel.items)
+            .selectinload(PaymentItemModel.order_item)
+            .selectinload(OrderItemModel.movie),
+            selectinload(PaymentModel.order),
+        )
+        .with_for_update()
+    )
+
+    if payment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payment was not found.",
+        )
+
+    should_send_confirmation = False
+    if payment.status in {
+        PaymentStatusEnum.PENDING,
+        PaymentStatusEnum.CANCELED,
+    }:
+        try:
+            checkout_session = (
+                await stripe_client.v1.checkout.sessions.retrieve_async(
+                    session_id
+                )
+            )
+        except stripe.StripeError as error:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Unable to verify Stripe Checkout session.",
+            ) from error
+
+        metadata = checkout_session.metadata or {}
+        if isinstance(metadata, stripe.StripeObject):
+            metadata = metadata.to_dict()
+
+        if (
+            checkout_session.id != payment.external_payment_id
+            or metadata.get("payment_id") != str(payment.id)
+            or metadata.get("order_id") != str(payment.order_id)
+            or metadata.get("user_id") != str(current_user.id)
+        ):
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Stripe Checkout Session does not match the payment.",
+            )
+
+        if checkout_session.payment_status in {
+            "paid",
+            "no_payment_required",
+        }:
+            expected_amount = int(payment.amount * Decimal("100"))
+            if (
+                checkout_session.amount_total != expected_amount
+                or checkout_session.currency.lower()
+                != settings.STRIPE_CURRENCY.lower()
+            ):
+                await db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Stripe payment amount or currency does not match.",
+                )
+
+            payment.status = PaymentStatusEnum.SUCCESSFUL
+            payment.order.status = OrderStatusEnum.PAID
+            should_send_confirmation = True
+
+        try:
+            await db.commit()
+        except SQLAlchemyError:
+            await db.rollback()
+            raise
+
+    if should_send_confirmation:
+        payment_link = (
+            f"{settings.APP_BASE_URL.rstrip('/')}"
+            f"/theater/payments/{payment.id}/"
+        )
+        background_tasks.add_task(
+            email_sender.send_payment_confirmation_email,
+            str(current_user.email),
+            payment.order_id,
+            str(payment.amount),
+            settings.STRIPE_CURRENCY.upper(),
+            payment_link,
+        )
+
+    messages = {
+        PaymentStatusEnum.PENDING: "Payment is still being processed.",
+        PaymentStatusEnum.SUCCESSFUL: "Payment confirmed successfully.",
+        PaymentStatusEnum.CANCELED: "Payment was not completed.",
+        PaymentStatusEnum.REFUNDED: "Payment was refunded.",
+    }
+
+    return PaymentConfirmationResponseSchema(
+        confirmed=payment.status == PaymentStatusEnum.SUCCESSFUL,
+        message=messages[payment.status],
+        payment=PaymentResponseSchema(
+            id=payment.id,
+            order_id=payment.order_id,
+            created_at=payment.created_at,
+            status=payment.status,
+            amount=payment.amount,
+            external_payment_id=payment.external_payment_id,
+            items_count=len(payment.items),
+            items=payment.items,
+        ),
+    )
+
+
 @router.post(
     "/payments/webhook/",
     response_model=PaymentWebhookResponseSchema,
@@ -274,6 +428,7 @@ async def get_current_user_payments(
 )
 async def handle_stripe_webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     stripe_signature: Annotated[
         str,
         Header(
@@ -283,6 +438,7 @@ async def handle_stripe_webhook(
     ],
     db: AsyncSession = Depends(get_db),
     settings: BaseAppSettings = Depends(get_settings),
+    email_sender: EmailSenderInterface = Depends(get_email_notificator),
 ) -> PaymentWebhookResponseSchema:
     payload = await request.body()
 
@@ -323,8 +479,9 @@ async def handle_stripe_webhook(
 
     row = (
         await db.execute(
-            select(PaymentModel, OrderModel)
+            select(PaymentModel, OrderModel, UserModel.email)
             .join(OrderModel, PaymentModel.order_id == OrderModel.id)
+            .join(UserModel, PaymentModel.user_id == UserModel.id)
             .where(PaymentModel.id == payment_id)
             .with_for_update()
         )
@@ -332,7 +489,8 @@ async def handle_stripe_webhook(
     if row is None:
         return PaymentWebhookResponseSchema(received=True)
 
-    payment, order = row
+    payment, order, user_email = row
+    should_send_confirmation = False
 
     if metadata.get("order_id") != str(order.id) or metadata.get("user_id") != str(
         payment.user_id
@@ -365,6 +523,12 @@ async def handle_stripe_webhook(
                     detail="Webhook payment amount or currency does not match.",
                 )
 
+            if payment.status not in {
+                PaymentStatusEnum.SUCCESSFUL,
+                PaymentStatusEnum.REFUNDED,
+            }:
+                should_send_confirmation = True
+
             if payment.status != PaymentStatusEnum.REFUNDED:
                 payment.status = PaymentStatusEnum.SUCCESSFUL
                 order.status = OrderStatusEnum.PAID
@@ -387,6 +551,19 @@ async def handle_stripe_webhook(
     except SQLAlchemyError:
         await db.rollback()
         raise
+
+    if should_send_confirmation:
+        payment_link = (
+            f"{settings.APP_BASE_URL.rstrip('/')}" f"/theater/payments/{payment.id}/"
+        )
+        background_tasks.add_task(
+            email_sender.send_payment_confirmation_email,
+            str(user_email),
+            order.id,
+            str(payment.amount),
+            settings.STRIPE_CURRENCY.upper(),
+            payment_link,
+        )
 
     return PaymentWebhookResponseSchema(received=True)
 

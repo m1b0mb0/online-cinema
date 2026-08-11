@@ -80,6 +80,7 @@ from src.schemas.order import (
 )
 from src.schemas.payments import (
     PaymentCheckoutResponseSchema,
+    PaymentConfirmationResponseSchema,
     PaymentItemResponseSchema,
     PaymentListParams,
     PaymentListResponseSchema,
