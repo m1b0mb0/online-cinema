@@ -7,7 +7,16 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.database import CartItemModel, CartModel, MovieModel, UserModel, get_db
+from src.database import (
+    CartItemModel,
+    CartModel,
+    MovieModel,
+    OrderItemModel,
+    OrderModel,
+    OrderStatusEnum,
+    UserModel,
+    get_db,
+)
 from src.schemas import CartItemResponseSchema, CartMovieSchema, CartResponseSchema
 from src.services import get_movie_by_uuid_or_404
 from src.security.dependencies import get_current_active_user
@@ -80,7 +89,7 @@ async def get_current_user_cart(
     responses={
         **AUTH_RESPONSES,
         404: {"description": "Movie was not found."},
-        409: {"description": "Movie is already in the cart."},
+        409: {"description": "Movie is already purchased or is already in the cart."},
     },
 )
 async def add_movie_to_cart(
@@ -91,6 +100,22 @@ async def add_movie_to_cart(
     movie = await get_movie_by_uuid_or_404(
         db, movie_uuid, loader_options=(selectinload(MovieModel.genres),)
     )
+
+    purchased_item_id = await db.scalar(
+        select(OrderItemModel.id)
+        .join(OrderModel, OrderItemModel.order_id == OrderModel.id)
+        .where(
+            OrderModel.user_id == current_user.id,
+            OrderModel.status == OrderStatusEnum.PAID,
+            OrderItemModel.movie_id == movie.id,
+        )
+        .limit(1)
+    )
+    if purchased_item_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Movie has already been purchased and cannot be added to the cart.",
+        )
 
     cart = await db.scalar(
         select(CartModel).where(CartModel.user_id == current_user.id)
