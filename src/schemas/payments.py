@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 
 from pydantic import (
@@ -7,7 +7,6 @@ from pydantic import (
     ConfigDict,
     EmailStr,
     Field,
-    model_validator,
 )
 
 from src.database.models.payments import PaymentStatusEnum
@@ -55,18 +54,6 @@ class PaymentConfirmationResponseSchema(BaseModel):
     payment: PaymentResponseSchema
 
 
-class PaymentListParams(BaseModel):
-    page: int = Field(default=1, ge=1, description="Page number.")
-    per_page: int = Field(
-        default=10,
-        ge=1,
-        le=50,
-        description="Number of payments per page.",
-    )
-
-    model_config = ConfigDict(extra="forbid")
-
-
 class PaymentListResponseSchema(PaginationResponseSchema):
     payments: list[PaymentResponseSchema]
 
@@ -93,3 +80,18 @@ class PaymentRefundResponseSchema(BaseModel):
 
 class PaymentWebhookResponseSchema(BaseModel):
     received: bool = True
+
+
+class AdminPaymentUserSchema(BaseModel):
+    id: int
+    email: EmailStr
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminPaymentResponseSchema(PaymentResponseSchema):
+    user: AdminPaymentUserSchema
+
+
+class AdminPaymentListResponseSchema(PaginationResponseSchema):
+    payments: list[AdminPaymentResponseSchema]
